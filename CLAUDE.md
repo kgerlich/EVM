@@ -252,3 +252,65 @@ SYSTEMFILE=PS20.S19
 - **Modern Compatibility**: Can be compiled with MSVC 6.0+
 - **Build System**: MSVC workspace (.dsw, .dsp files)
 - **Dependencies**: Windows API (Win32), no external libraries
+
+## Web Frontend
+
+A modern React + WebAssembly frontend is available in the `evm-web/` directory.
+
+### Getting Started with Web Frontend
+
+```bash
+# Prerequisites
+npm install -g @emscripten/emsdk
+emsdk install latest && emsdk activate latest
+
+# Build WASM module
+cd evm-web/evm-core
+./build.sh
+
+# Run development server
+cd ../web
+npm install
+npm run dev
+```
+
+Opens at `http://localhost:5173` - Full interactive simulator in your browser!
+
+### Web Components
+
+- **Control Panel** - Play, pause, step, reset with speed control
+- **CPU Registers** - Live view of D0-D7, A0-A7, PC, SR with flags
+- **Memory Inspector** - Hex dump viewer (256 bytes at a time)
+- **Disassembler** - Shows next 10 instructions with mnemonics
+- **Terminal Emulator** - VT100 serial I/O (68681 UART)
+- **Peripheral Monitor** - MC68230 and MC68681 register display
+
+### Architecture
+
+- **WASM**: Compile C simulator to WebAssembly (100K ops/sec)
+- **Web Worker**: Run simulator in background thread (non-blocking UI)
+- **React/TypeScript**: Modern type-safe components
+- **Responsive**: Works on desktop, tablet, mobile
+
+See `evm-web/README.md` and `evm-web/WEB_IMPLEMENTATION_SUMMARY.md` for details.
+
+### Building for Production
+
+```bash
+# Rebuild WASM
+cd evm-web/evm-core && ./build.sh
+
+# Build React app
+cd ../web && npm run build
+
+# Output in web/dist/
+```
+
+### Deployment
+
+Deploy `evm-web/web/dist/` to:
+- Vercel (recommended): `vercel deploy`
+- GitHub Pages: Push to gh-pages branch
+- Any static host (Netlify, AWS S3, etc.)
+
+**Note**: Server must support COOP/COEP headers for Web Worker with SharedArrayBuffer.
