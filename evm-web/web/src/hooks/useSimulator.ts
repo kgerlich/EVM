@@ -141,7 +141,7 @@ export function useSimulator(): UseSimulatorReturn {
         };
     }, []);
 
-    // Load ROM after initialization
+    // Load ROM after initialization, then call reset to read reset vectors from ROM
     useEffect(() => {
         if (simulatorState.initialized && workerRef.current) {
             (async () => {
@@ -156,12 +156,12 @@ export function useSimulator(): UseSimulatorReturn {
                     // Parse S19 format
                     console.log('🔍 [useSimulator] Parsing S19 format...');
                     const { segments } = parseS19(content);
-                    const merged = mergeSegments(segments);
-                    console.log(`✅ [useSimulator] Parsed ${merged.size} memory segments`);
+                    console.log(`✅ [useSimulator] Parsed ${segments.size} memory segments`);
 
-                    // Load ROM into simulator
+                    // Load ROM into simulator - load each segment directly without merging
+                    // (merging was destroying data, so we write each segment's bytes directly to WASM memory)
                     let totalBytes = 0;
-                    for (const [addr, data] of merged) {
+                    for (const [addr, data] of segments) {
                         const romData = new Uint8Array(data);
                         totalBytes += romData.length;
                         console.log(`📍 [useSimulator] Loading segment at 0x${addr.toString(16).padStart(6, '0')}, size: ${romData.length} bytes`);
@@ -179,13 +179,35 @@ export function useSimulator(): UseSimulatorReturn {
                             };
 
                             workerRef.current?.addEventListener('message', onMessage);
+                            // Pass Uint8Array directly, not Array.from()
+                            // Emscripten cwrap needs a typed array for proper pointer conversion
                             workerRef.current?.postMessage({
                                 type: 'loadROM',
-                                payload: { data: Array.from(romData), address: addr },
+                                payload: { data: romData, address: addr },
                             });
                         });
                     }
                     console.log(`✅ [useSimulator] ROM loaded successfully! Total: ${totalBytes} bytes`);
+
+                    // NOW that ROM is loaded, call reset to read reset vectors from ROM
+                    console.log('🔄 [useSimulator] Calling reset to read reset vectors from loaded ROM...');
+                    await new Promise<void>((resolve, reject) => {
+                        const onMessage = (event: MessageEvent) => {
+                            if (event.data.type === 'state' || event.data.type === 'error') {
+                                workerRef.current?.removeEventListener('message', onMessage);
+                                if (event.data.type === 'error') {
+                                    reject(new Error(event.data.error));
+                                } else {
+                                    console.log(`✅ [useSimulator] Reset complete, PC=0x${event.data.state.pc.toString(16).padStart(6, '0')}, SSP=0x${event.data.state.ssp.toString(16).padStart(6, '0')}`);
+                                    resolve();
+                                }
+                            }
+                        };
+
+                        workerRef.current?.addEventListener('message', onMessage);
+                        workerRef.current?.postMessage({ type: 'reset' });
+                    });
+
                 } catch (error) {
                     const msg = error instanceof Error ? error.message : String(error);
                     console.error(`❌ [useSimulator] Failed to load ROM: ${msg}`);

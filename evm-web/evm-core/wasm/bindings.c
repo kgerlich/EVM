@@ -1,281 +1,387 @@
+/*
+ * wasm/bindings.c
+ *
+ * Emscripten WASM bindings for the EVM simulator
+ * Exposes the simulator API to JavaScript
+ */
+
 #include <emscripten.h>
 #include <stdlib.h>
-#include <string.h>
+#include "../include/simulator.h"
 
-/* Forward declarations from main simulator */
-extern void Simulate68k(unsigned long ops);
-extern void SetupSim(void);
-extern void ResetSim(void);
-extern void ExitSim(void);
-extern int CheckForInt(void);
+/* Global simulator context */
+static simulator_t *g_simulator = NULL;
 
-/* CPU structure from Stcom.h */
-typedef struct {
-    unsigned long pc;           /* Program counter */
-    unsigned short sr;          /* Status register */
-    unsigned long dregs[8];     /* Data registers D0-D7 */
-    unsigned long aregs[8];     /* Address registers A0-A7 */
-    unsigned long ssp;          /* Supervisor stack pointer */
-    unsigned long usp;          /* User stack pointer */
-    unsigned long msp;          /* Master stack pointer */
-} CPUState;
-
-/* Global simulator state */
-static int initialized = 0;
-static int running = 0;
-
-/* Memory access functions (from Stmem.c) */
-extern unsigned char GETbyte(unsigned long addr);
-extern void PUTbyte(unsigned long addr, unsigned char val);
-extern unsigned short GETword(unsigned long addr);
-extern void PUTword(unsigned long addr, unsigned short val);
-extern unsigned long GETdword(unsigned long addr);
-extern void PUTdword(unsigned long addr, unsigned long val);
-
-/* CPU state access (from Stcom.c) */
-extern struct {
-    unsigned short sr;
-    unsigned long d[8];
-    unsigned long a[8];
-    unsigned long pc;
-    unsigned long ssp;
-    unsigned long usp;
-    unsigned long msp;
-} cpu;
+/* ============================================================================
+ * Simulator Lifecycle
+ * ============================================================================ */
 
 /**
- * Initialize the simulator
+ * Initialize the simulator (WITHOUT calling reset)
+ *
+ * Called from JavaScript before any other simulator operations.
+ * NOTE: Does NOT call reset - reset should be called after ROM is loaded
  */
 EMSCRIPTEN_KEEPALIVE
-int cpu_init() {
-    if (initialized) {
-        return 0;  /* Already initialized */
+int cpu_init(void)
+{
+    if (g_simulator != NULL) {
+        simulator_destroy(g_simulator);
     }
 
-    SetupSim();
-    initialized = 1;
-    running = 0;
-    return 1;
+    g_simulator = simulator_init();
+    if (g_simulator == NULL) {
+        return 0;  /* Failure */
+    }
+
+    if (simulator_load_modules(g_simulator) != 0) {
+        simulator_destroy(g_simulator);
+        g_simulator = NULL;
+        return 0;  /* Failure */
+    }
+
+    /* NOTE: Do NOT call simulator_reset here!
+     * Reset must be called AFTER ROM is loaded, so reset vectors can be read from ROM.
+     * The JavaScript side will call cpu_reset() after loading ROM.
+     */
+
+    return 1;  /* Success */
 }
 
 /**
  * Reset the simulator to initial state
  */
 EMSCRIPTEN_KEEPALIVE
-void cpu_reset() {
-    ResetSim();
-    running = 0;
-}
-
-/**
- * Execute a single instruction
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_step() {
-    if (!initialized) {
-        cpu_init();
-    }
-    Simulate68k(1);
-}
-
-/**
- * Execute N instructions
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_run(unsigned long count) {
-    if (!initialized) {
-        cpu_init();
-    }
-    running = 1;
-    Simulate68k(count);
-}
-
-/**
- * Pause execution
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_pause() {
-    running = 0;
-}
-
-/**
- * Check if simulator is running
- */
-EMSCRIPTEN_KEEPALIVE
-int cpu_is_running() {
-    return running;
-}
-
-/**
- * Get complete CPU state as JSON-compatible struct
- * Returns pointer to static CPUState structure
- */
-EMSCRIPTEN_KEEPALIVE
-CPUState* cpu_get_state() {
-    static CPUState state;
-
-    state.pc = cpu.pc;
-    state.sr = cpu.sr;
-
-    for (int i = 0; i < 8; i++) {
-        state.dregs[i] = cpu.d[i];
-        state.aregs[i] = cpu.a[i];
-    }
-
-    state.ssp = cpu.ssp;
-    state.usp = cpu.usp;
-    state.msp = cpu.msp;
-
-    return &state;
-}
-
-/**
- * Set a data register value
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_set_dreg(int reg, unsigned long value) {
-    if (reg >= 0 && reg < 8) {
-        cpu.d[reg] = value;
+void cpu_reset(void)
+{
+    if (g_simulator != NULL) {
+        simulator_reset(g_simulator);
     }
 }
 
 /**
- * Set an address register value
+ * Cleanup and destroy the simulator
  */
 EMSCRIPTEN_KEEPALIVE
-void cpu_set_areg(int reg, unsigned long value) {
-    if (reg >= 0 && reg < 8) {
-        cpu.a[reg] = value;
+void cpu_shutdown(void)
+{
+    if (g_simulator != NULL) {
+        simulator_destroy(g_simulator);
+        g_simulator = NULL;
     }
+}
+
+/* ============================================================================
+ * CPU Execution
+ * ============================================================================ */
+
+/**
+ * Execute a single CPU instruction
+ *
+ * Returns: 0 on success, non-zero on error
+ */
+EMSCRIPTEN_KEEPALIVE
+int cpu_step(void)
+{
+    if (g_simulator == NULL) return -1;
+    return simulator_step(g_simulator);
+}
+
+/**
+ * Execute N CPU instructions
+ *
+ * @param count Number of instructions to execute
+ * @return Number of instructions actually executed
+ */
+EMSCRIPTEN_KEEPALIVE
+uint32_t cpu_run(uint32_t count)
+{
+    if (g_simulator == NULL) return 0;
+    return simulator_run(g_simulator, count);
+}
+
+/**
+ * Pause simulator execution
+ */
+EMSCRIPTEN_KEEPALIVE
+void cpu_pause(void)
+{
+    if (g_simulator != NULL) {
+        simulator_pause(g_simulator);
+    }
+}
+
+/* ============================================================================
+ * CPU State Access
+ * ============================================================================ */
+
+/**
+ * Get complete CPU state as packed structure
+ *
+ * Returns pointer to CPU state structure that can be read from WASM memory
+ */
+EMSCRIPTEN_KEEPALIVE
+const simulator_cpu_state_t *cpu_get_state(void)
+{
+    if (g_simulator == NULL) return NULL;
+    return simulator_get_state(g_simulator);
+}
+
+/**
+ * Get program counter
+ */
+EMSCRIPTEN_KEEPALIVE
+uint32_t cpu_get_pc(void)
+{
+    if (g_simulator == NULL) return 0;
+    return simulator_get_state(g_simulator)->pc;
 }
 
 /**
  * Set program counter
  */
 EMSCRIPTEN_KEEPALIVE
-void cpu_set_pc(unsigned long pc) {
-    cpu.pc = pc;
+void cpu_set_pc(uint32_t value)
+{
+    if (g_simulator == NULL) return;
+    g_simulator->cpu.pc = value & 0xFFFFFF;  /* 24-bit address space */
+}
+
+/**
+ * Get data register value
+ *
+ * @param reg Register number (0-7)
+ * @return Register value
+ */
+EMSCRIPTEN_KEEPALIVE
+uint32_t cpu_get_dreg(int reg)
+{
+    if (g_simulator == NULL || reg < 0 || reg > 7) return 0;
+    return g_simulator->cpu.d[reg];
+}
+
+/**
+ * Set data register value
+ */
+EMSCRIPTEN_KEEPALIVE
+void cpu_set_dreg(int reg, uint32_t value)
+{
+    if (g_simulator == NULL || reg < 0 || reg > 7) return;
+    g_simulator->cpu.d[reg] = value;
+}
+
+/**
+ * Get address register value
+ *
+ * @param reg Register number (0-7)
+ * @return Register value
+ */
+EMSCRIPTEN_KEEPALIVE
+uint32_t cpu_get_areg(int reg)
+{
+    if (g_simulator == NULL || reg < 0 || reg > 7) return 0;
+    return g_simulator->cpu.a[reg];
+}
+
+/**
+ * Set address register value
+ */
+EMSCRIPTEN_KEEPALIVE
+void cpu_set_areg(int reg, uint32_t value)
+{
+    if (g_simulator == NULL || reg < 0 || reg > 7) return;
+    simulator_set_register(g_simulator, reg, value, 'a');
+}
+
+/**
+ * Get status register
+ */
+EMSCRIPTEN_KEEPALIVE
+uint16_t cpu_get_sr(void)
+{
+    if (g_simulator == NULL) return 0;
+    return g_simulator->cpu.sr;
 }
 
 /**
  * Set status register
  */
 EMSCRIPTEN_KEEPALIVE
-void cpu_set_sr(unsigned short sr) {
-    cpu.sr = sr;
+void cpu_set_sr(uint16_t value)
+{
+    if (g_simulator == NULL) return;
+    g_simulator->cpu.sr = value;
+}
+
+/* ============================================================================
+ * Memory Access
+ * ============================================================================ */
+
+/**
+ * Read byte from memory
+ *
+ * @param addr Memory address
+ * @return Byte value
+ */
+EMSCRIPTEN_KEEPALIVE
+uint8_t cpu_read_byte(uint32_t addr)
+{
+    if (g_simulator == NULL) return 0;
+    return (uint8_t)simulator_read_memory(g_simulator, addr, 1);
 }
 
 /**
- * Read a byte from memory
+ * Read word (16-bit) from memory
  */
 EMSCRIPTEN_KEEPALIVE
-unsigned char cpu_read_byte(unsigned long addr) {
-    return GETbyte(addr);
+uint16_t cpu_read_word(uint32_t addr)
+{
+    if (g_simulator == NULL) return 0;
+    return (uint16_t)simulator_read_memory(g_simulator, addr, 2);
 }
 
 /**
- * Read a word (16-bit) from memory
+ * Read dword (32-bit) from memory
  */
 EMSCRIPTEN_KEEPALIVE
-unsigned short cpu_read_word(unsigned long addr) {
-    return GETword(addr);
+uint32_t cpu_read_dword(uint32_t addr)
+{
+    if (g_simulator == NULL) return 0;
+    return simulator_read_memory(g_simulator, addr, 4);
 }
 
 /**
- * Read a dword (32-bit) from memory
+ * Write byte to memory
  */
 EMSCRIPTEN_KEEPALIVE
-unsigned long cpu_read_dword(unsigned long addr) {
-    return GETdword(addr);
-}
-
-/**
- * Read multiple bytes from memory (for memory inspector)
- * buf: pointer to output buffer
- * addr: starting address
- * size: number of bytes to read
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_read_memory_range(unsigned char* buf, unsigned long addr, unsigned long size) {
-    for (unsigned long i = 0; i < size; i++) {
-        buf[i] = GETbyte(addr + i);
+void cpu_write_byte(uint32_t addr, uint8_t value)
+{
+    if (g_simulator != NULL) {
+        simulator_write_memory(g_simulator, addr, value, 1);
     }
 }
 
 /**
- * Write a byte to memory
+ * Write word (16-bit) to memory
  */
 EMSCRIPTEN_KEEPALIVE
-void cpu_write_byte(unsigned long addr, unsigned char val) {
-    PUTbyte(addr, val);
-}
-
-/**
- * Write a word (16-bit) to memory
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_write_word(unsigned long addr, unsigned short val) {
-    PUTword(addr, val);
-}
-
-/**
- * Write a dword (32-bit) to memory
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_write_dword(unsigned long addr, unsigned long val) {
-    PUTdword(addr, val);
-}
-
-/**
- * Write multiple bytes to memory
- * buf: pointer to input buffer
- * addr: starting address
- * size: number of bytes to write
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_write_memory_range(unsigned char* buf, unsigned long addr, unsigned long size) {
-    for (unsigned long i = 0; i < size; i++) {
-        PUTbyte(addr + i, buf[i]);
+void cpu_write_word(uint32_t addr, uint16_t value)
+{
+    if (g_simulator != NULL) {
+        simulator_write_memory(g_simulator, addr, value, 2);
     }
 }
 
 /**
- * Load ROM from binary data
- * data: pointer to binary data
- * size: size in bytes
+ * Write dword (32-bit) to memory
  */
 EMSCRIPTEN_KEEPALIVE
-void cpu_load_rom(unsigned char* data, unsigned long size) {
-    /* ROM is mapped at 0x000000 */
-    cpu_write_memory_range(data, 0x000000, size);
-}
-
-/**
- * Load program into RAM
- * data: pointer to binary data
- * size: size in bytes
- * addr: starting address (default 0x400000 for RAM)
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_load_program(unsigned char* data, unsigned long size, unsigned long addr) {
-    cpu_write_memory_range(data, addr, size);
-}
-
-/**
- * Get memory size information
- */
-EMSCRIPTEN_KEEPALIVE
-unsigned long cpu_get_memory_size() {
-    return 0x1000000;  /* 16MB address space */
-}
-
-/**
- * Cleanup simulator
- */
-EMSCRIPTEN_KEEPALIVE
-void cpu_cleanup() {
-    if (initialized) {
-        ExitSim();
-        initialized = 0;
+void cpu_write_dword(uint32_t addr, uint32_t value)
+{
+    if (g_simulator != NULL) {
+        simulator_write_memory(g_simulator, addr, value, 4);
     }
+}
+
+/* ============================================================================
+ * Program Loading
+ * ============================================================================ */
+
+/**
+ * Load program data into memory
+ *
+ * @param data Pointer to program data in WASM linear memory
+ * @param size Size of program data in bytes
+ * @param addr Base address to load at
+ * @return 0 on success, -1 on error
+ */
+EMSCRIPTEN_KEEPALIVE
+int cpu_load_program(uint8_t *data, uint32_t size, uint32_t addr)
+{
+    if (g_simulator == NULL || data == NULL) return -1;
+    return simulator_load_program(g_simulator, data, size, addr);
+}
+
+/**
+ * Load ROM image (S19 format or binary)
+ *
+ * @param data Pointer to ROM data
+ * @param size Size of ROM data
+ * @return 0 on success, -1 on error
+ */
+EMSCRIPTEN_KEEPALIVE
+int cpu_load_rom(uint8_t *data, uint32_t size)
+{
+    if (g_simulator == NULL || data == NULL) return -1;
+    /* Load ROM at address 0x000000 */
+    return simulator_load_program(g_simulator, data, size, 0x000000);
+}
+
+/**
+ * Direct ROM initialization - bypass permission checks for loading ROM at startup
+ *
+ * This function directly writes to ROM memory, bypassing the read-only check
+ * that would normally prevent writes. This allows ROM to be loaded during
+ * simulator initialization.
+ *
+ * @param data Pointer to ROM data in WASM linear memory
+ * @param size Size of ROM data in bytes
+ * @param addr Base address to load at (should be 0x000000)
+ * @return 0 on success, -1 on error
+ */
+EMSCRIPTEN_KEEPALIVE
+int cpu_init_rom(uint8_t *data, uint32_t size, uint32_t addr)
+{
+    if (g_simulator == NULL || data == NULL) return -1;
+
+    /* Find the ROM module */
+    for (int i = 0; i < g_simulator->num_modules; i++) {
+        simulator_module_t *mod = g_simulator->modules[i];
+        if (mod && mod->base_addr == 0x000000 && mod->size == 0x10000) {
+            /* This is the ROM module - directly access its memory */
+            typedef struct { uint8_t *memory; size_t size; int writable; } rom_state_t;
+            rom_state_t *state = (rom_state_t *)mod->state;
+
+            if (!state || !state->memory) return -1;
+
+            uint32_t offset = addr - mod->base_addr;
+            if (offset + size > state->size) {
+                return -1;  /* Data doesn't fit in ROM */
+            }
+
+            /* Direct memory copy, bypassing write permission check */
+            for (size_t i = 0; i < size; i++) {
+                state->memory[offset + i] = data[i];
+            }
+
+            return 0;
+        }
+    }
+
+    return -1;  /* ROM module not found */
+}
+
+/* ============================================================================
+ * Debugging/Status
+ * ============================================================================ */
+
+/**
+ * Get simulator status
+ *
+ * Returns: 1 if initialized and ready, 0 otherwise
+ */
+EMSCRIPTEN_KEEPALIVE
+int cpu_is_initialized(void)
+{
+    return (g_simulator != NULL) ? 1 : 0;
+}
+
+/**
+ * Get last error message (if any)
+ */
+EMSCRIPTEN_KEEPALIVE
+const char *cpu_get_error(void)
+{
+    /* TODO: Implement error reporting system */
+    return "No error";
 }

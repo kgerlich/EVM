@@ -8,14 +8,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 #define STRICT
 #define WIN32_LEAN_AND_MEAN //schlank und rank HAHA!!
-#include <windows.h>
+#include "windows-compat.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "stmain.h"  // main program
-#include "stcom.h"   // CPU core
-#include "stexep.h"  // exception handling
+#include "STMAIN.H"  // main program
+#include "STCOM.H"   // CPU core
+#include "STEXEP.H"  // exception handling
 
-#define MAPPERSIZE (16*1024) // 16*1024 entries in table = 16MB à 1kB pages
+#define MAPPERSIZE (16*1024) // 16*1024 entries in table = 16MB ï¿½ 1kB pages
 ////////////////////////////////////////////////////////////////////////////////
 // globals
 ////////////////////////////////////////////////////////////////////////////////

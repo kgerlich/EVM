@@ -345,10 +345,22 @@ async function handleMessage(event: MessageEvent<SimulatorMessage>): Promise<voi
                 break;
 
             case 'loadROM':
-                const romData = payload?.data as Uint8Array;
+                // ROM data might be passed as Array or Uint8Array, convert to Uint8Array
+                const romDataRaw = payload?.data;
+                let romData: Uint8Array;
+
+                if (romDataRaw instanceof Uint8Array) {
+                    romData = romDataRaw;
+                } else if (Array.isArray(romDataRaw)) {
+                    // Convert array to Uint8Array if needed
+                    romData = new Uint8Array(romDataRaw);
+                } else {
+                    throw new Error('ROM data must be Uint8Array or array of bytes');
+                }
+
                 const romAddr = payload?.address || 0x000000;
-                if (!romData) {
-                    throw new Error('No ROM data provided');
+                if (!romData || romData.length === 0) {
+                    throw new Error('No ROM data provided or empty ROM');
                 }
                 console.log(`[Worker] LOADROM: Loading ${romData.length} bytes at 0x${romAddr.toString(16).padStart(6, '0')}`);
 
@@ -359,6 +371,7 @@ async function handleMessage(event: MessageEvent<SimulatorMessage>): Promise<voi
                     console.log(`[Worker] LOADROM: Using direct ROM initialization (cpu_init_rom)`);
                     try {
                         romResult = cpu.initRom(romData, romData.length, romAddr);
+                        console.log(`[Worker] LOADROM: cpu_init_rom returned ${romResult}`);
                     } catch (e) {
                         console.warn(`[Worker] LOADROM: Direct init failed: ${e}`);
                         romResult = -1;
@@ -370,6 +383,7 @@ async function handleMessage(event: MessageEvent<SimulatorMessage>): Promise<voi
                     console.log(`[Worker] LOADROM: Attempting standard load path (cpu_load_program)`);
                     try {
                         romResult = cpu.loadProgram(romData, romData.length, romAddr);
+                        console.log(`[Worker] LOADROM: cpu_load_program returned ${romResult}`);
                     } catch (e) {
                         console.warn(`[Worker] LOADROM: Standard load failed: ${e}`);
                         romResult = -1;

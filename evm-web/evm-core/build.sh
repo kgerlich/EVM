@@ -30,10 +30,15 @@ cmake --build . --config Release
 
 # Copy output to web directory
 echo "Copying output files..."
-cp evm.js ../../../web/public/evm.js
-cp evm.wasm ../../../web/public/evm.wasm
+# Emscripten generates evm.js.js and evm.js.wasm
+cp evm.js.js ../web/public/evm.js
+cp evm.js.wasm ../web/public/evm.js.wasm
+
+# Also keep the paired versions for fallback
+cp evm.js.js ../web/public/evm.js.js 2>/dev/null || true
+cp evm.js.wasm ../web/public/evm.wasm 2>/dev/null || true
 
 echo "Build complete!"
 echo "Output files:"
-echo "  - web/public/evm.js"
-echo "  - web/public/evm.wasm"
+echo "  - web/public/evm.js (main JS loader)"
+echo "  - web/public/evm.js.wasm (WebAssembly binary)"

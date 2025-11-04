@@ -1,0 +1,179 @@
+===============================================================================
+MC68020 INSTRUCTION HANDLER EXTRACTION SUMMARY
+===============================================================================
+Source: /home/kgerlich/dev/EVM/EVMSim/Stcom.c
+Extracted: November 4, 2025
+
+===============================================================================
+EXTRACTED INSTRUCTIONS (9 TOTAL)
+===============================================================================
+
+1. COM_ori (Lines 106-170)
+   - Bitwise OR immediate to effective address
+   - Handles byte (0x00FF), word (0x0000FFFF), and long operands
+   - Sets NEG and ZERO flags; clears OVER and CARRY
+
+2. COM_andi (Lines 176-229)
+   - Bitwise AND immediate to effective address
+   - Size-masked AND: preserves upper bits
+   - Sets NEG and ZERO flags; clears OVER and CARRY
+
+3. COM_subi (Lines 236-297)
+   - Subtract immediate from effective address
+   - Full subtract with carry/overflow flags set
+   - Uses gen_carry() and gen_over() helper functions
+
+4. COM_addi (Lines 303-364)
+   - Add immediate to effective address
+   - Full add with carry/overflow flags set
+   - Uses gen_carry() and gen_over() helper functions
+
+5. COM_eori (Lines 370-423)
+   - Exclusive OR immediate with effective address
+   - Handles byte, word, and long operands
+   - Sets NEG and ZERO flags; clears OVER and CARRY
+
+6. COM_cmpi (Lines 429-480)
+   - Compare immediate with effective address
+   - Performs subtraction for flags only (no write)
+   - Supports byte, word, and long variants
+
+7. COM_addq (Lines 3096-3142)
+   - ADD Quick (1-8 from opcode bits)
+   - Supports all three sizes with separate flag calculation
+   - Uses setxtend() for extend flag
+
+8. COM_subq (Lines 3148-3194)
+   - SUBTRACT Quick (1-8 from opcode bits)
+   - Supports all three sizes with separate flag calculation
+   - Uses setxtend() for extend flag
+
+9. COM_cmpa (Lines 4394-4423)
+   - Compare Address Register with source
+   - Two variants: case 3 (word), case 7 (long)
+   - Operates on cpu.aregs.a[] without modifying register
+
+===============================================================================
+HELPER FUNCTIONS EXTRACTED
+===============================================================================
+
+From STFLAGS.C (Lines 107-129):
+
+1. gen_carry(long s, long d, long r)
+   - Analyzes sign bits of source, destination, and result
+   - Returns 1 if carry occurred, 0 otherwise
+   - Used in all arithmetic operations
+
+2. gen_over(long s, long d, long r)
+   - Detects signed overflow condition
+   - Returns 1 if overflow occurred, 0 otherwise
+   - Used in all arithmetic operations
+
+===============================================================================
+FLAG MACROS EXTRACTED
+===============================================================================
+
+From macros.h:
+
+- CARRY1/CARRY0    : Set/clear carry flag (bit 0)
+- ZERO1/ZERO0      : Set/clear zero flag (bit 2)
+- OVER1/OVER0      : Set/clear overflow flag (bit 1)
+- XTEND1/XTEND0    : Set/clear extend flag (bit 4)
+- NEG1/NEG0        : Set/clear negative flag (bit 3)
+
+All flags operate directly on cpu.sregs.ccr (Condition Code Register)
+
+===============================================================================
+GLOBAL STRUCTURES
+===============================================================================
+
+Opcode Union (of):
+- of.general.regsrc    : 3-bit source register field
+- of.general.modesrc   : 3-bit source mode field
+- of.general.regdest   : 3-bit destination register field
+- of.general.modedest  : 3-bit destination mode field
+- of.special.size      : 2-bit size field (0=byte, 1=word, 2=long)
+
+Work Structure (work):
+- work.source      : Source operand value
+- work.destination : Destination operand value
+- work.result      : Result of operation
+
+PC Variables:
+- cpu.pc  : Current program counter (24-bit address)
+- spc     : Saved PC (preserved across CommandMode() calls)
+
+===============================================================================
+ADDRESSING MODE HANDLERS
+===============================================================================
+
+CommandMode[8] function pointer array dispatches to:
+0. DRD   - Data Register Direct
+1. ARD   - Address Register Direct
+2. ARI   - Address Register Indirect
+3. ARIPI - Address Register Indirect with Post-Increment
+4. ARIPD - Address Register Indirect with Pre-Decrement
+5. ARID  - Address Register Indirect with Displacement
+6. ARII  - Address Register Indirect with Index
+7. MISC  - Special/miscellaneous (absolute, immediate, PC-relative)
+
+Parameters: (register, command[0=read/1=write], value, size[0/1/2])
+
+===============================================================================
+MEMORY ACCESS FUNCTIONS
+===============================================================================
+
+extern short GETword(unsigned long address)
+- Reads 16-bit value, handles endian conversion
+
+extern long GETdword(unsigned long address)
+- Reads 32-bit value, handles endian conversion
+
+extern void PUTword(unsigned long address, short data)
+- Writes 16-bit value, handles endian conversion
+
+extern void PUTdword(unsigned long address, long data)
+- Writes 32-bit value, handles endian conversion
+
+===============================================================================
+KEY PATTERNS FOR WASM CONVERSION
+===============================================================================
+
+1. Size-based code paths:
+   - case 0: Byte operations (8-bit), often masked 0x00FF
+   - case 1: Word operations (16-bit), often masked 0x0000FFFF
+   - case 2: Long operations (32-bit), full 32-bit
+
+2. PC advancement:
+   - Opcode: +2 bytes
+   - Immediate byte/word: +2 bytes additional
+   - Immediate long: +4 bytes additional
+
+3. Carry/overflow calculation:
+   - Always performed via gen_carry() and gen_over()
+   - Sign-based detection, must be called with operands cast to proper size
+
+4. Flag setting patterns:
+   - Binary operations (AND, OR, EOR): Set NEG/ZERO only, clear OVER/CARRY
+   - Arithmetic (ADD, SUB, CMP): Set all 5 flags (using setxtend for X flag)
+   - Quick operations (ADDQ, SUBQ): Set all 5 flags
+
+5. CommandMode dispatch:
+   - Always check address mode field before calling
+   - Save and restore PC around CommandMode calls
+   - Size parameter determines byte/word/long behavior
+
+===============================================================================
+FILE LOCATIONS
+===============================================================================
+
+Complete extraction: /home/kgerlich/dev/EVM/MC68020_INSTRUCTION_EXTRACT.md
+
+Source files:
+- Main instructions: /home/kgerlich/dev/EVM/EVMSim/Stcom.c (lines 106-4423)
+- Flag functions:   /home/kgerlich/dev/EVM/EVMSim/STFLAGS.C (lines 107-129)
+- Macro definitions: /home/kgerlich/dev/EVM/EVMSim/macros.h
+- Memory functions: /home/kgerlich/dev/EVM/EVMSim/STMEM.H (declarations)
+- Flag declarations: /home/kgerlich/dev/EVM/EVMSim/STFLAGS.H
+
+===============================================================================

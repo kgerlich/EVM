@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **EVM (Embedded Virtual Machine) Simulator** - A complete MC68020 CPU emulator for Windows (32-bit) created as a diploma project in 1997 using Borland C++ 5.0. The simulator allows execution of MC68020 machine code with emulated peripherals (timer, serial ports, GPIO) in a Windows GUI environment.
 
+A modern **React + WebAssembly web frontend** has been added, allowing the simulator to run in browsers with performance comparable to the native Windows version.
+
 ## Common Development Tasks
 
-### Building the Project
+### Building the Native Simulator (Windows/MSVC)
 
 The project uses MSVC 6.0 workspace format (.dsw files):
 
@@ -22,20 +24,74 @@ msvc evm.dsw  # Or use Visual Studio IDE
 
 **Important**: The `build.exe` tool generates `EVMSim/sttable.c` (5000+ lines) from `script.txt`. This file must be regenerated when adding new CPU instructions or modifying opcode definitions.
 
+### Building the Web Frontend
+
+**Prerequisites:**
+- Emscripten SDK (https://emscripten.org/docs/getting_started/downloads.html)
+- Node.js v18+
+- CMake 3.15+
+
+**Build steps:**
+
+```bash
+# 1. Build WebAssembly module
+cd evm-web/evm-core
+./build.sh
+
+# 2. Build React application
+cd ../web
+npm install        # First time only
+npm run build      # Production build
+```
+
+**Development workflow:**
+
+```bash
+# Start local development server on 0.0.0.0:8084 (auto-recompiles on changes)
+cd evm-web/web
+npm run dev -- --host 0.0.0.0 --port 8084
+
+# Type check & lint while developing
+npm run lint
+```
+
 ### Running the Simulator
 
+**Web version (development):**
+```bash
+cd evm-web/web
+npm run dev -- --host 0.0.0.0 --port 8084
+# Access at http://0.0.0.0:8084
+```
+
+**Web version (production):**
+```bash
+cd evm-web/web
+npm run build                                    # Build first
+npm run preview -- --host 0.0.0.0 --port 8084  # Run on http://0.0.0.0:8084
+```
+
+**Native Windows version:**
 ```bash
 .\EVMSim\EVMSIM.exe
 ```
 
-The simulator starts with a Windows GUI showing:
+The simulator displays:
 - Main control window (Start/Stop buttons, status display)
+- CPU registers (D0-D7, A0-A7, PC, SR, flags)
+- Memory inspector (hex dump viewer)
 - 68230 PIT register viewer dialog
 - 68681 UART VT100 terminal emulator
+- Disassembler (next 10 instructions)
 
 ### Debugging
 
 The project includes a `debug.dll` module that can be loaded for debugging support. Trace mode can be enabled via the SR (status register) TRACE bit to trigger single-step execution.
+
+**Web frontend debugging:**
+- Use browser DevTools (F12) to inspect React components and Web Worker
+- Check console for simulator errors
+- Use the Memory Inspector to view/edit memory at runtime
 
 ## Architecture Overview
 
@@ -257,24 +313,31 @@ SYSTEMFILE=PS20.S19
 
 A modern React + WebAssembly frontend is available in the `evm-web/` directory.
 
-### Getting Started with Web Frontend
+### Web Frontend Stack
+
+- **WASM**: Compiled C simulator via Emscripten (~100K instructions/sec, 1.5MB binary)
+- **React + TypeScript**: Modern type-safe components (React 19, TypeScript 5.9)
+- **Vite**: Fast development server and production bundler
+- **Web Worker**: Simulator runs in background thread (prevents UI blocking)
+- **Responsive UI**: Works on desktop, tablet, mobile
+
+### Development Commands
 
 ```bash
-# Prerequisites
-npm install -g @emscripten/emsdk
-emsdk install latest && emsdk activate latest
+cd evm-web/web
 
-# Build WASM module
-cd evm-web/evm-core
-./build.sh
+# Start development server on 0.0.0.0:8084 (auto-recompile on changes)
+npm run dev -- --host 0.0.0.0 --port 8084
+# Access at http://0.0.0.0:8084
 
-# Run development server
-cd ../web
-npm install
-npm run dev
+# Type checking & linting
+npm run lint                # Run ESLint
+npm run build              # Full TypeScript build + production bundle
+
+# Preview production build locally (on port 8084)
+npm run preview -- --host 0.0.0.0 --port 8084
+# Access at http://0.0.0.0:8084
 ```
-
-Opens at `http://localhost:5173` - Full interactive simulator in your browser!
 
 ### Web Components
 
@@ -285,32 +348,66 @@ Opens at `http://localhost:5173` - Full interactive simulator in your browser!
 - **Terminal Emulator** - VT100 serial I/O (68681 UART)
 - **Peripheral Monitor** - MC68230 and MC68681 register display
 
-### Architecture
+### Building WASM Module
 
-- **WASM**: Compile C simulator to WebAssembly (100K ops/sec)
-- **Web Worker**: Run simulator in background thread (non-blocking UI)
-- **React/TypeScript**: Modern type-safe components
-- **Responsive**: Works on desktop, tablet, mobile
-
-See `evm-web/README.md` and `evm-web/WEB_IMPLEMENTATION_SUMMARY.md` for details.
-
-### Building for Production
+The WASM module is compiled from the C simulator using Emscripten:
 
 ```bash
-# Rebuild WASM
-cd evm-web/evm-core && ./build.sh
+cd evm-web/evm-core
+./build.sh
 
-# Build React app
-cd ../web && npm run build
-
-# Output in web/dist/
+# Output:
+#   ../web/public/evm.js    (~500KB)
+#   ../web/public/evm.wasm  (~1.5MB)
 ```
+
+The build script:
+1. Checks for Emscripten (emcc command)
+2. Runs CMake with Emscripten toolchain
+3. Compiles C code to WASM with optimization flags (-O2)
+4. Copies output to web/public/
+
+**Important**: Rebuild WASM after modifying C code in `EVMSim/` or when adding new CPU instructions.
+
+### WASM Bindings
+
+Key C functions exported to JavaScript from `evm-core/wasm/bindings.c`:
+- `cpu_init()` / `cpu_reset()` - Initialize/reset simulator
+- `cpu_step()` / `cpu_run(count)` / `cpu_pause()` - Execution control
+- `cpu_get_state()` - Retrieve full CPU state
+- `cpu_read_byte/word/dword(addr)` - Memory reads
+- `cpu_write_byte/word/dword(addr, val)` - Memory writes
+- `cpu_load_rom(data)` / `cpu_load_program(data, addr)` - Load code
+
+See `evm-core/CMakeLists.txt` for compilation flags and `web/src/workers/simulator.worker.ts` for Web Worker integration.
+
+### Production Build
+
+```bash
+cd evm-web/web
+
+# Full build (TypeScript check + WASM + React bundle)
+npm run build
+
+# Output: web/dist/
+#   - index.html
+#   - *.js, *.css (React app)
+#   - evm.js, evm.wasm (WASM module)
+```
+
+**Note**: WASM files must be pre-built in `web/public/` before running React build.
 
 ### Deployment
 
-Deploy `evm-web/web/dist/` to:
-- Vercel (recommended): `vercel deploy`
-- GitHub Pages: Push to gh-pages branch
-- Any static host (Netlify, AWS S3, etc.)
+Deploy `evm-web/web/dist/` to any static host:
+- **Vercel (recommended)**: `vercel deploy`
+- **GitHub Pages**: Push to gh-pages branch
+- **Netlify/AWS S3**: Standard static hosting
 
-**Note**: Server must support COOP/COEP headers for Web Worker with SharedArrayBuffer.
+**Required server headers for Web Worker support:**
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+See `evm-web/README.md` for additional details.

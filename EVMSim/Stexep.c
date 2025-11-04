@@ -8,13 +8,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 #define STRICT
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "windows-compat.h"
 #include <stdio.h>
-#include "stmain.h"
-#include "stmem.h"
-#include "ststddef.h"
-#include "stcom.h"
-#include "ststate.h"
+#include "STMAIN.H"
+#include "STMEM.H"
+#include "STSTDDEF.H"
+#include "STCOM.H"
+#include "STSTATE.H"
 
 //******************************************************************************
 //																										**

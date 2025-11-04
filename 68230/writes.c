@@ -7,7 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 #define STRICT  // strict type checking
 #define WIN32_LEAN_AND_MEAN  // only basic windows stuff
-#include <windows.h> // windows API
+#include "windows-compat.h" // portable Windows API compatibility
 #include <stdio.h>  // standard IO
 #include "..\evmsim\stdll.h"  // DLLHDR
 #include "68230.h"

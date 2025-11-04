@@ -8,12 +8,12 @@
 //						simulate a QUME VT101 terminal
 //						see various chapters from
 //						QVT101 terminal BENUTZER HANDBUCH
-//						QUME GmbH, Düsseldorf, copyright Januar 1985
+//						QUME GmbH, Dï¿½sseldorf, copyright Januar 1985
 //						used to get the protocol requirements right
 ////////////////////////////////////////////////////////////////////////////////
 #define STRICT          // do STRICT type checking
 #define WIN32_LEAN_AND_MEAN // only necessary windows APIs
-#include <windows.h> 	// the WINDOWS API
+#include "windows-compat.h" // portable Windows API compatibility
 #include <commdlg.h>    // common dialogs (CHOOSEFONT)
 #include <stdio.h>
 #include "68681.h"

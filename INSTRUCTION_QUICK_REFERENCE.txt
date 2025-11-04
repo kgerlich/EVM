@@ -1,0 +1,238 @@
+================================================================================
+MC68020 INSTRUCTION HANDLER QUICK REFERENCE
+================================================================================
+
++----------+------+------+-------+-------+-------+-----+-------+------+
+| Instr    | Line | Type | Sizes | PC+   | Flags | EA? | Notes | WASM |
++----------+------+------+-------+-------+-------+-----+-------+------+
+| COM_ori  | 106  | Logic| B,W,L | 2+2/4 | N,Z  | Yes | Imm OR    | OK  |
+| COM_andi | 176  | Logic| B,W,L | 2+2/4 | N,Z  | Yes | Imm AND   | OK  |
+| COM_subi | 236  | Arith| B,W,L | 2+2/4 | All  | Yes | Imm SUB   | OK  |
+| COM_addi | 303  | Arith| B,W,L | 2+2/4 | All  | Yes | Imm ADD   | OK  |
+| COM_eori | 370  | Logic| B,W,L | 2+2/4 | N,Z  | Yes | Imm XOR   | OK  |
+| COM_cmpi | 429  | Cmp  | B,W,L | 2+2/4 | All  | Yes | Imm CMP   | OK  |
+| COM_addq | 3096 | Arith| B,W,L | 2+0   | All  | Yes | Q=1-8     | OK  |
+| COM_subq | 3148 | Arith| B,W,L | 2+0   | All  | Yes | Q=1-8     | OK  |
+| COM_cmpa | 4394 | Cmp  | W,L   | 2+0   | All  | No  | Addr Reg  | OK  |
++----------+------+------+-------+-------+-------+-----+-------+------+
+
+Legend:
+  Type   = Logic (AND/OR/XOR), Arith (ADD/SUB), Cmp (Compare)
+  Sizes  = B(Byte), W(Word), L(Long) support
+  PC+    = PC increment pattern (opcode + immediate)
+  Flags  = N(Neg), Z(Zero), C(Carry), V(Overflow), X(Extend)
+           "All" = N,Z,C,V,X
+  EA?    = Requires addressing mode decoding
+  Q      = Quick immediate (1-8 encoded in opcode bits [11:9])
+
+================================================================================
+SIZE FIELD ENCODING (of.special.size)
+================================================================================
+
+Value | Type   | Mask        | Operation
+------|--------|-------------|------------------------------------------
+0     | Byte   | 0x000000FF  | 8-bit value, sign-extend for operations
+1     | Word   | 0x0000FFFF  | 16-bit value, sign-extend for operations  
+2     | Long   | 0xFFFFFFFF  | 32-bit value, full width
+
+For ANDI/ORI/EORI, size-masked immediate preserves upper bits:
+  AND Byte:  AND with (source | 0xFFFFFF00) to preserve high 3 bytes
+  AND Word:  AND with (source | 0xFFFF0000) to preserve high 2 bytes
+  AND Long:  AND with source directly
+
+================================================================================
+FLAG BITS IN CCR (cpu.sregs.ccr)
+================================================================================
+
+Bit | Name   | Macro Clear | Macro Set | Function
+----|--------|-------------|-----------|---------------------------
+0   | Carry  | CARRY0      | CARRY1    | Arithmetic carry/borrow
+1   | Ovflow | OVER0       | OVER1     | Signed overflow
+2   | Zero   | ZERO0       | ZERO1     | Result is zero
+3   | Neg    | NEG0        | NEG1      | Result is negative (MSB=1)
+4   | Extend | XTEND0      | XTEND1    | Extended carry (for ADDX/SUBX)
+
+All macro calls modify cpu.sregs.ccr directly with bitwise ops:
+  NEG1   => cpu.sregs.ccr |=  0x08;
+  NEG0   => cpu.sregs.ccr &= ~0x08;
+
+================================================================================
+CARRY/OVERFLOW DETECTION ALGORITHM
+================================================================================
+
+gen_carry(long s, long d, long r):
+  Returns 1 if: (s<0 && !d<0) || (r<0 && !d<0) || (s<0 && r<0)
+  Sign-based: carry = (neg_source AND pos_destination) OR
+                      (neg_result AND pos_destination) OR
+                      (neg_source AND neg_result)
+
+gen_over(long s, long d, long r):
+  Returns 1 if: (!s<0 && d<0 && !r<0) || (s<0 && !d<0 && r<0)
+  Overflow = (pos_source AND neg_destination AND pos_result) OR
+             (neg_source AND pos_destination AND neg_result)
+  = Sign mismatch between inputs but result has unexpected sign
+
+CRITICAL: Must cast operands to correct size before calling:
+  setcarry( gen_carry((char)s, (char)d, (char)r) );      // Byte
+  setcarry( gen_carry((short)s, (short)d, (short)r) );   // Word
+  setcarry( gen_carry(s, d, r) );                         // Long
+
+================================================================================
+COMMANDMODE DISPATCH PATTERNS
+================================================================================
+
+All instructions using EA follow this pattern:
+
+  cpu.pc += 2;                    // Skip opcode
+  spc = cpu.pc;                   // Save PC
+  
+  // READ phase - get source/destination from EA
+  work.source = CommandMode[of.general.modesrc](
+    of.general.regsrc,            // Register number (0-7)
+    0,                            // Command: 0=READ
+    0,                            // Ignore for read
+    of.special.size               // 0=byte, 1=word, 2=long
+  );
+  
+  cpu.pc = spc;                   // Restore PC (CommandMode may have advanced it)
+  
+  // COMPUTE: work.source op work.result
+  // (masked by size if needed)
+  
+  // WRITE phase - store result back to EA
+  CommandMode[of.general.modesrc](
+    of.general.regsrc,            // Same register
+    1,                            // Command: 1=WRITE
+    work.result,                  // Value to write
+    of.special.size               // Size
+  );
+
+CommandMode Array Indices:
+  0 = DRD   (Data Register Direct)
+  1 = ARD   (Address Register Direct)
+  2 = ARI   (Address Register Indirect)
+  3 = ARIPI (with Post-Increment)
+  4 = ARIPD (with Pre-Decrement)
+  5 = ARID  (with Displacement)
+  6 = ARII  (with Index)
+  7 = MISC  (Special: absolute, immediate, PC-relative)
+
+================================================================================
+IMMEDIATE VALUE EXTRACTION
+================================================================================
+
+Byte Immediate:
+  work.source = GETword(cpu.pc) & 0x00FF;
+  cpu.pc += 2;
+
+Word Immediate:
+  work.source = GETword(cpu.pc);
+  cpu.pc += 2;
+
+Long Immediate:
+  work.source = GETdword(cpu.pc);
+  cpu.pc += 4;
+
+Note: GETword/GETdword handle 68020 big-endian -> x86 little-endian conversion
+
+================================================================================
+QUICK IMMEDIATE EXTRACTION (ADDQ/SUBQ)
+================================================================================
+
+size = (opcode >> 6) & 0x03;      // Extract bits [7:6]
+data = (opcode & 0x0E00) ? 
+       (of.general.regdest) :     // Bits [11:9] if non-zero
+       8;                         // Else data=8 for 0x0E00=0
+
+Result:
+  Byte:  result = (source & 0xFFFFFF00) | ((char)source + data)
+  Word:  result = source + (unsigned short)data
+  Long:  result = source + (unsigned long)data
+
+================================================================================
+ADDRESSING MODE MODEDEST FIELD (COM_cmpa)
+================================================================================
+
+COM_cmpa uses of.general.modedest (not modesrc) to determine size:
+
+  case 3:  // Word compare
+    Compare as (short) values
+    PC increment: +2 only
+    
+  case 7:  // Long compare
+    Compare as (long) values
+    PC increment: +2 only
+
+Note: CMPA doesn't use CommandMode, reads directly from 
+      cpu.aregs.a[of.general.regdest]
+
+================================================================================
+IMMEDIATE INSTRUCTION OPERAND ORDER
+================================================================================
+
+Pattern for immediate instructions:
+  Opcode[15:0] + Immediate(s) + [Displacement/Extension]
+  
+Example: ADDI.W #0x1234, D0
+  Word 1: ADDI opcode
+  Word 2: Immediate value 0x1234
+  
+PC advancement:
+  1. cpu.pc += 2  (skip opcode)
+  2. cpu.pc += 2  (skip word imm)  OR
+  3. cpu.pc += 4  (skip long imm)
+
+For address register operations:
+  CommandMode may fetch displacement/index word(s)
+  This can advance cpu.pc further
+  Must save/restore spc to preserve correct PC
+
+================================================================================
+MASKING PATTERNS FOR SIZE
+================================================================================
+
+ANDI masking (preserve upper bits):
+  Byte: AND with (source | 0xFFFFFF00L)  // Keep bits 31:8
+  Word: AND with (source | 0xFFFF0000L)  // Keep bits 31:16
+  Long: AND with source directly
+
+ORI/EORI masking (zero-extend then OR/XOR):
+  Byte: source & 0x000000FF
+  Word: source & 0x0000FFFF
+  Long: source directly
+
+All cast result to proper size for flag checking:
+  if((char)work.result < 0)  NEG1;      // Byte: check bit 7
+  if((short)work.result < 0) NEG1;      // Word: check bit 15
+  if(work.result < 0)        NEG1;      // Long: check bit 31
+
+================================================================================
+CONVERSION NOTES FOR WASM
+================================================================================
+
+1. Preserve exact bit patterns:
+   - Use unsigned long (32-bit) for all work values
+   - Cast to signed types only for flag checking
+   - All bitwise ops preserve bit patterns
+
+2. Memory access:
+   - GETword/GETdword abstract endian conversion
+   - Just call them as-is in WebAssembly
+   - Implement endian swap in WASM memory functions
+
+3. Function calling:
+   - gen_carry/gen_over are pure functions (no side effects)
+   - setcarry/setover call gen_carry/gen_over, modify CCR
+   - Can be inlined or called as helper functions
+
+4. Size handling:
+   - Don't use bitfields in WASM (not portable)
+   - Extract opcode fields with shifts/masks:
+     size = (opcode >> 6) & 0x03;
+     regdest = (opcode >> 9) & 0x07;
+   
+5. Addressing modes:
+   - Stub CommandMode array as dummy functions for now
+   - Implement proper addressing mode decoding separately
+   - Same signature expected: long func(char reg, char cmd, long val, char size)
+

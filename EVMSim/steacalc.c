@@ -8,10 +8,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 #define STRICT
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include "stmem.h"   // high level memory handling
-#include "ststddef.h" // standard defines
-#include "stcom.h"   // global simulation stuff (variables etc...)
+#include "windows-compat.h"
+#include "STMEM.H"   // high level memory handling
+#include "STSTDDEF.H" // standard defines
+#include "STCOM.H"   // global simulation stuff (variables etc...)
 
 ///////////////////////////////////////////////////////////////////////////
 //              EA calculation

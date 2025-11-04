@@ -8,14 +8,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 #define STRICT // strict type checking
 #define WIN32_LEAN_AND_MEAN  // use only the barest windows API
-#include <windows.h> // the Windows API
+#include "windows-compat.h" // portable Windows API compatibility layer
 #include <stdlib.h>  // include functions LDIV (structure LDIV_T, DV)
 							// division operations
-#include "stmain.h"  // includes of stmain.c
-#include "stflags.h" // MC68000 flag functions
-#include "stmem.h"   // memory access
-#include "steacalc.h" // calc effective address
-#include "stexep.h"   // exception handling
+#include "STMAIN.H"  // includes of stmain.c
+#include "STFLAGS.H" // MC68000 flag functions
+#include "STMEM.H"   // memory access
+#include "STEACALC.H" // calc effective address
+#include "STEXEP.H"   // exception handling
 #include "stdll.h"     // header for runtime dynamic linking of plugin modules
 #include "ststartw.h"  // startup window header
 #include "macros.h"    // macros for CPU status register operations
