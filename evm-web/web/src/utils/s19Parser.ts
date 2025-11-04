@@ -74,10 +74,11 @@ function parseRecord(line: string): S19Record | null {
     address = address & 0xFFFFFF;
 
     dataOffset += addressLen * 2;
-    const dataHex = trimmed.substring(dataOffset, dataOffset + (dataLen - addressLen) * 2);
-    const checksumStr = trimmed.substring(dataOffset + (dataLen - addressLen) * 2, dataOffset + (dataLen - addressLen) * 2 + 2);
+    const actualDataBytes = dataLen - addressLen;  // Actual number of data bytes (excluding address)
+    const dataHex = trimmed.substring(dataOffset, dataOffset + actualDataBytes * 2);
+    const checksumStr = trimmed.substring(dataOffset + actualDataBytes * 2, dataOffset + actualDataBytes * 2 + 2);
 
-    const data = new Uint8Array((dataLen - addressLen) / 2);
+    const data = new Uint8Array(actualDataBytes);
     for (let i = 0; i < data.length; i++) {
         data[i] = parseInt(dataHex.substring(i * 2, i * 2 + 2), 16);
     }
