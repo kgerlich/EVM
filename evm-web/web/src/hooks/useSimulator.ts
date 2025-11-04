@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { parseS19, mergeSegments } from '../utils/s19Parser';
 
 export interface CPUState {
     pc: number;
@@ -44,18 +45,35 @@ export function useSimulator(): UseSimulatorReturn {
 
     // Initialize worker and simulator
     useEffect(() => {
-        // Create worker from TypeScript file
-        const workerUrl = new URL('../workers/simulator.worker.ts', import.meta.url);
-        workerRef.current = new Worker(workerUrl, { type: 'module' });
+        console.log('🚀 [useSimulator] Creating Web Worker...');
+
+        // Create worker - need to use a compiled JS file, not TypeScript
+        // Use a classic worker (not module) so it can use importScripts()
+        try {
+            workerRef.current = new Worker(
+                new URL('../workers/simulator.worker.ts', import.meta.url),
+                { type: 'classic' }
+            );
+            console.log('✅ [useSimulator] Worker created successfully');
+        } catch (err) {
+            console.error('❌ [useSimulator] Failed to create worker:', err);
+            setSimulatorState((prev) => ({
+                ...prev,
+                error: `Failed to create worker: ${err}`,
+            }));
+            return;
+        }
 
         const worker = workerRef.current;
 
         // Listen for messages from worker
         worker.onmessage = (event: MessageEvent) => {
             const { type, state, error, data, addr } = event.data;
+            console.log(`📨 [useSimulator] Received message from worker:`, { type, state, error });
 
             switch (type) {
                 case 'ready':
+                    console.log('✅ [useSimulator] Simulator initialized and ready');
                     setSimulatorState((prev) => ({
                         ...prev,
                         initialized: true,
@@ -64,6 +82,12 @@ export function useSimulator(): UseSimulatorReturn {
                     break;
 
                 case 'state':
+                    console.log('📊 [useSimulator] CPU State updated:', {
+                        pc: `0x${state.pc.toString(16).padStart(6, '0')}`,
+                        sr: `0x${state.sr.toString(16).padStart(4, '0')}`,
+                        d0: `0x${state.dregs[0].toString(16).padStart(8, '0')}`,
+                        a7: `0x${state.aregs[7].toString(16).padStart(8, '0')}`,
+                    });
                     setSimulatorState((prev) => ({
                         ...prev,
                         state,
@@ -73,6 +97,7 @@ export function useSimulator(): UseSimulatorReturn {
                     break;
 
                 case 'memoryRead':
+                    console.log(`🔍 [useSimulator] Memory read from 0x${addr.toString(16).padStart(6, '0')}`);
                     const readCallback = memoryPromiseRef.current.get(`read-${addr}`);
                     if (readCallback) {
                         readCallback(new Uint8Array(data));
@@ -81,6 +106,7 @@ export function useSimulator(): UseSimulatorReturn {
                     break;
 
                 case 'error':
+                    console.error('❌ [useSimulator] Worker error:', error);
                     setSimulatorState((prev) => ({
                         ...prev,
                         error: error || 'Unknown error',
@@ -89,11 +115,12 @@ export function useSimulator(): UseSimulatorReturn {
                     break;
 
                 default:
-                    console.warn(`Unknown message type: ${type}`);
+                    console.warn(`⚠️ [useSimulator] Unknown message type: ${type}`);
             }
         };
 
         worker.onerror = (error) => {
+            console.error('❌ [useSimulator] Worker error event:', error);
             setSimulatorState((prev) => ({
                 ...prev,
                 error: error.message || 'Worker error',
@@ -102,24 +129,85 @@ export function useSimulator(): UseSimulatorReturn {
         };
 
         // Initialize simulator
+        console.log('🔧 [useSimulator] Sending init message to worker...');
         worker.postMessage({ type: 'init' });
 
         // Cleanup
         return () => {
             if (workerRef.current) {
+                console.log('🛑 [useSimulator] Terminating worker');
                 workerRef.current.terminate();
             }
         };
     }, []);
 
+    // Load ROM after initialization
+    useEffect(() => {
+        if (simulatorState.initialized && workerRef.current) {
+            (async () => {
+                try {
+                    console.log('📥 [useSimulator] Loading ROM file...');
+                    // Fetch S19 ROM file
+                    const response = await fetch('/PS20.S19');
+                    console.log(`✅ [useSimulator] Fetched PS20.S19, status: ${response.status}`);
+                    const content = await response.text();
+                    console.log(`✅ [useSimulator] ROM content length: ${content.length} bytes`);
+
+                    // Parse S19 format
+                    console.log('🔍 [useSimulator] Parsing S19 format...');
+                    const { segments } = parseS19(content);
+                    const merged = mergeSegments(segments);
+                    console.log(`✅ [useSimulator] Parsed ${merged.size} memory segments`);
+
+                    // Load ROM into simulator
+                    let totalBytes = 0;
+                    for (const [addr, data] of merged) {
+                        const romData = new Uint8Array(data);
+                        totalBytes += romData.length;
+                        console.log(`📍 [useSimulator] Loading segment at 0x${addr.toString(16).padStart(6, '0')}, size: ${romData.length} bytes`);
+
+                        await new Promise<void>((resolve, reject) => {
+                            const onMessage = (event: MessageEvent) => {
+                                if (event.data.type === 'ready' || event.data.type === 'error') {
+                                    workerRef.current?.removeEventListener('message', onMessage);
+                                    if (event.data.type === 'error') {
+                                        reject(new Error(event.data.error));
+                                    } else {
+                                        resolve();
+                                    }
+                                }
+                            };
+
+                            workerRef.current?.addEventListener('message', onMessage);
+                            workerRef.current?.postMessage({
+                                type: 'loadROM',
+                                payload: { data: Array.from(romData), address: addr },
+                            });
+                        });
+                    }
+                    console.log(`✅ [useSimulator] ROM loaded successfully! Total: ${totalBytes} bytes`);
+                } catch (error) {
+                    const msg = error instanceof Error ? error.message : String(error);
+                    console.error(`❌ [useSimulator] Failed to load ROM: ${msg}`);
+                    setSimulatorState((prev) => ({
+                        ...prev,
+                        error: `Failed to load ROM: ${msg}`,
+                    }));
+                }
+            })();
+        }
+    }, [simulatorState.initialized]);
+
     const step = useCallback(() => {
         if (workerRef.current && simulatorState.initialized) {
+            console.log('⏭️ [useSimulator] Stepping one instruction');
             workerRef.current.postMessage({ type: 'step' });
         }
     }, [simulatorState.initialized]);
 
     const run = useCallback((count = 10000) => {
         if (workerRef.current && simulatorState.initialized) {
+            console.log(`▶️ [useSimulator] Running ${count} instructions`);
             setSimulatorState((prev) => ({ ...prev, running: true }));
             workerRef.current.postMessage({ type: 'run', payload: { count } });
         }
@@ -127,6 +215,7 @@ export function useSimulator(): UseSimulatorReturn {
 
     const pause = useCallback(() => {
         if (workerRef.current && simulatorState.initialized) {
+            console.log('⏸️ [useSimulator] Pausing execution');
             setSimulatorState((prev) => ({ ...prev, paused: true, running: false }));
             workerRef.current.postMessage({ type: 'pause' });
         }
@@ -134,6 +223,7 @@ export function useSimulator(): UseSimulatorReturn {
 
     const reset = useCallback(() => {
         if (workerRef.current && simulatorState.initialized) {
+            console.log('🔄 [useSimulator] Resetting CPU');
             setSimulatorState((prev) => ({ ...prev, running: false, paused: false }));
             workerRef.current.postMessage({ type: 'reset' });
         }

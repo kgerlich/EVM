@@ -9,12 +9,13 @@ interface ControlPanelProps {
 export const ControlPanel: React.FC<ControlPanelProps> = ({ simulator }) => {
     const [speed, setSpeed] = useState(1000);
     const [isRunning, setIsRunning] = useState(false);
-    const runIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const runIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const romFileRef = useRef<HTMLInputElement>(null);
     const programFileRef = useRef<HTMLInputElement>(null);
 
     const handlePlay = () => {
         if (!isRunning) {
+            console.log('🎮 [ControlPanel] PLAY button clicked');
             setIsRunning(true);
             runIntervalRef.current = setInterval(() => {
                 simulator.run(speed);
@@ -24,6 +25,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ simulator }) => {
 
     const handlePause = () => {
         if (isRunning) {
+            console.log('🎮 [ControlPanel] PAUSE button clicked');
             setIsRunning(false);
             if (runIntervalRef.current) {
                 clearInterval(runIntervalRef.current);
@@ -34,10 +36,12 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ simulator }) => {
     };
 
     const handleStep = () => {
+        console.log('🎮 [ControlPanel] STEP button clicked');
         simulator.step();
     };
 
     const handleReset = () => {
+        console.log('🎮 [ControlPanel] RESET button clicked');
         if (isRunning) {
             handlePause();
         }
@@ -48,11 +52,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ simulator }) => {
         const file = event.target.files?.[0];
         if (file) {
             try {
+                console.log(`🎮 [ControlPanel] Loading ROM file: ${file.name} (${file.size} bytes)`);
                 const arrayBuffer = await file.arrayBuffer();
                 const data = new Uint8Array(arrayBuffer);
+                console.log(`🎮 [ControlPanel] ROM file read, sending to simulator...`);
                 await simulator.loadROM(data);
+                console.log(`✅ [ControlPanel] ROM loaded successfully`);
             } catch (error) {
-                console.error('Failed to load ROM:', error);
+                console.error('❌ [ControlPanel] Failed to load ROM:', error);
             }
         }
     };
@@ -61,11 +68,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ simulator }) => {
         const file = event.target.files?.[0];
         if (file) {
             try {
+                console.log(`🎮 [ControlPanel] Loading program file: ${file.name} (${file.size} bytes)`);
                 const arrayBuffer = await file.arrayBuffer();
                 const data = new Uint8Array(arrayBuffer);
+                console.log(`🎮 [ControlPanel] Program file read, sending to simulator...`);
                 await simulator.loadProgram(data, 0x400000);
+                console.log(`✅ [ControlPanel] Program loaded successfully at 0x400000`);
             } catch (error) {
-                console.error('Failed to load program:', error);
+                console.error('❌ [ControlPanel] Failed to load program:', error);
             }
         }
     };
