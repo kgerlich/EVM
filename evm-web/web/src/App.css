@@ -1,0 +1,142 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+        'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: #f0f0f0;
+}
+
+.app-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 24px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.app-header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+}
+
+.app-header p {
+    font-size: 14px;
+    opacity: 0.95;
+    font-weight: 300;
+}
+
+.app-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+}
+
+.left-column,
+.center-column,
+.right-column {
+    min-width: 0;
+}
+
+.panel {
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
+}
+
+.app-footer {
+    background: #333;
+    color: #999;
+    padding: 16px;
+    text-align: center;
+    font-size: 12px;
+    border-top: 1px solid #555;
+}
+
+.app-footer a {
+    color: #0066cc;
+    text-decoration: none;
+    margin: 0 4px;
+}
+
+.app-footer a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive design */
+@media (max-width: 1400px) {
+    .app-container {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .right-column {
+        grid-column: 1 / -1;
+        max-height: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-container {
+        grid-template-columns: 1fr;
+    }
+
+    .right-column {
+        grid-column: auto;
+        max-height: none;
+    }
+
+    .app-header h1 {
+        font-size: 24px;
+    }
+
+    .app-header {
+        padding: 16px;
+    }
+
+    .app-container {
+        padding: 12px;
+        gap: 12px;
+    }
+}
+
+/* Scrollbar styling */
+.column::-webkit-scrollbar {
+    width: 8px;
+}
+
+.column::-webkit-scrollbar-track {
+    background: #f0f0f0;
+}
+
+.column::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 4px;
+}
+
+.column::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}

@@ -1,0 +1,164 @@
+.container {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 16px;
+    font-family: 'Courier New', monospace;
+    overflow-y: auto;
+    max-height: 600px;
+}
+
+.container h2 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ddd;
+}
+
+.inputGroup {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 1;
+}
+
+.inputGroup label {
+    font-size: 13px;
+    color: #666;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.input {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    width: 150px;
+}
+
+.input:focus {
+    outline: none;
+    border-color: #0066cc;
+    box-shadow: 0 0 3px rgba(0, 102, 204, 0.3);
+}
+
+.button {
+    padding: 6px 12px;
+    background: #0066cc;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.button:hover:not(:disabled) {
+    background: #0052a3;
+}
+
+.button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.romWarning {
+    padding: 4px 8px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #856404;
+    font-weight: 600;
+}
+
+.error {
+    padding: 10px;
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 3px;
+    color: #721c24;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.memoryView {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 8px;
+}
+
+.hexDump {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+}
+
+.hexRow {
+    display: flex;
+    gap: 12px;
+    padding: 4px 8px;
+    background: white;
+    border-radius: 2px;
+}
+
+.hexRow:nth-child(even) {
+    background: #f9f9f9;
+}
+
+.address {
+    min-width: 80px;
+    color: #666;
+    font-weight: 600;
+    text-align: right;
+}
+
+.hexBytes {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+}
+
+.byte {
+    display: inline-block;
+    width: 24px;
+    text-align: center;
+    padding: 2px 0;
+}
+
+.hasByte {
+    color: #0066cc;
+    font-weight: 600;
+}
+
+.empty {
+    color: #ccc;
+}
+
+.ascii {
+    display: flex;
+    gap: 1px;
+    min-width: 150px;
+    padding: 0 8px;
+    border-left: 1px solid #e0e0e0;
+    border-right: 1px solid #e0e0e0;
+}
+
+.asciiChar {
+    font-family: monospace;
+    color: #333;
+    width: 10px;
+    text-align: center;
+}

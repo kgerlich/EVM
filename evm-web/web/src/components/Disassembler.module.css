@@ -1,0 +1,124 @@
+.container {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 16px;
+    font-family: 'Courier New', monospace;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.container h2 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #333;
+}
+
+.currentPC {
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 3px;
+    font-size: 13px;
+    color: #1565c0;
+}
+
+.pcValue {
+    font-weight: 600;
+    color: #0d47a1;
+}
+
+.empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #999;
+    font-size: 14px;
+}
+
+.instructionList {
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    overflow: hidden;
+    background: white;
+}
+
+.tableHeader {
+    display: grid;
+    grid-template-columns: 80px 80px 1fr 60px;
+    gap: 12px;
+    padding: 8px 12px;
+    background: #f0f0f0;
+    border-bottom: 2px solid #ddd;
+    font-weight: 600;
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+}
+
+.instruction {
+    display: grid;
+    grid-template-columns: 80px 80px 1fr 60px;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 12px;
+    align-items: center;
+}
+
+.instruction:nth-child(even) {
+    background: #fafafa;
+}
+
+.instruction:hover {
+    background: #f0f8ff;
+}
+
+.instruction.current {
+    background: #fff3cd;
+    border-left: 3px solid #ffc107;
+    padding-left: 9px;
+    font-weight: 600;
+}
+
+.col_address {
+    color: #666;
+    font-weight: 600;
+    text-align: right;
+}
+
+.col_bytes {
+    color: #999;
+    font-family: monospace;
+    text-align: center;
+}
+
+.col_mnemonic {
+    color: #0066cc;
+    font-weight: 500;
+}
+
+.col_cycles {
+    color: #999;
+    text-align: center;
+}
+
+/* Scrollbar styling */
+.container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.container::-webkit-scrollbar-track {
+    background: #f5f5f5;
+}
+
+.container::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 4px;
+}
+
+.container::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
