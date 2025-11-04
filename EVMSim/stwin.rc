@@ -1,0 +1,123 @@
+//Microsoft Developer Studio generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// German (Germany) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_DEU)
+#ifdef _WIN32
+LANGUAGE LANG_GERMAN, SUBLANG_GERMAN
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+STWIN MENU DISCARDABLE 
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&Quit STWIN",                 IDM_QUIT
+    END
+    POPUP "&Simulation"
+    BEGIN
+        MENUITEM "Reset",                       IDM_RESET
+        MENUITEM SEPARATOR
+        MENUITEM "Debug Brea&k",                IDM_DEBUGBREAK
+    END
+    POPUP "&?", HELP
+    BEGIN
+        MENUITEM "&About STWIN",                IDM_ABOUT
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+STARTUP DIALOG DISCARDABLE  0, 0, 259, 171
+STYLE DS_CENTER | DS_CENTERMOUSE | DS_CONTEXTHELP | WS_POPUP | WS_VISIBLE | 
+    WS_CAPTION | WS_THICKFRAME
+CAPTION "68K Simulator for Windows"
+FONT 8, "MS Sans Serif"
+BEGIN
+    GROUPBOX        "68K Simulator for Windows",-1,4,4,252,146,WS_GROUP
+    LTEXT           "Attached modules",-1,12,20,236,10,SS_SUNKEN | NOT 
+                    WS_GROUP
+    LTEXT           "TEXT TEXT TEXT",IDC_START,4,155,252,13,NOT WS_GROUP | 
+                    WS_TABSTOP
+    LISTBOX         IDC_MODULES,12,30,236,116,0,WS_EX_CLIENTEDGE
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+STWIN                   ICON    DISCARDABLE     "icon1.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+FHMFB04                 BITMAP  DISCARDABLE     "fhm.BMP"
+#endif    // German (Germany) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

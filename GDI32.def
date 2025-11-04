@@ -1,0 +1,11 @@
+LIBRARY GDI32
+
+DESCRIPTION 'import lib def file for use with LIB.EXE'
+
+EXPORTS
+	DeleteDC	@68
+	StretchBlt	@383
+	GetStockObject	@251
+	CreateCompatibleDC	@32
+	GetObjectA	@235
+	SelectObject	@331

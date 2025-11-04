@@ -1,0 +1,10 @@
+////////////////////////////////////////////////////////////////////////////////
+// NAME: 			writes.h
+// COMPILER:		Borland C++ 5.0
+// AUTHOR:			Klaus P. Gerlicher
+// DATE:				5/1997
+// DESCRIPTION:   header for writes.c
+////////////////////////////////////////////////////////////////////////////////
+extern void WritePADR(BYTE data);
+extern void WritePBDR(BYTE data);
+extern void WritePCDR(BYTE data);

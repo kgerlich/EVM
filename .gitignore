@@ -1,0 +1,46 @@
+# Build outputs
+*.obj
+*.lib
+*.exe
+*.dll
+*.exp
+*.map
+*.pdb
+*.ilk
+
+# IDE and editor files
+*.ncb
+*.opt
+*.plg
+*.aps
+*.dsp
+*.dsw
+.vs/
+.vscode/
+*.suo
+*.user
+*.VC.db
+*.VC.VC.opendb
+
+# Debug output
+Debug/
+Release/
+*.asm
+*.sym
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+.AppleDouble/
+
+# Temporary files
+*.swp
+*.swo
+*~
+*.tmp
+
+# Build artifacts
+build/
+dist/
+out/

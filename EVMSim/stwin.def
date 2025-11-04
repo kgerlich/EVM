@@ -1,0 +1,12 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; definition file for project EVMSIM32.EXE
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+NAME EVMSIM32  								; name of project
+DESCRIPTION 'EVM Simulator for WIN32' 	; description
+EXETYPE WINDOWS 								; type of executable
+STUB 'WINSTUB.EXE' 							; stub program
+CODE PRELOAD MOVEABLE 		 				; code segment attributes
+DATA PRELOAD MOVEABLE SINGLE 				; data segment attributes
+HEAPSIZE 1048000             				; size of initially reserved global heap
+STACKSIZE 1048000            				; size of initially reserved stack
+

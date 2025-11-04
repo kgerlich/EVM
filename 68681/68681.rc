@@ -1,0 +1,37 @@
+/****************************************************************************
+
+
+68681.rc
+
+produced by Borland Resource Workshop
+
+
+*****************************************************************************/
+#include <afxres.h>
+#include "68681.rh"
+
+MENU68681 MENU 
+{
+ POPUP "&Popup"
+ {
+  MENUITEM "Choose Terminal Font...", IDM_CHOOSEFONT
+ }
+
+}
+
+PRINTDLG DIALOG 67, 42, 156, 25
+STYLE DS_SYSMODAL | DS_MODALFRAME | DS_3DLOOK | DS_CONTEXTHELP | WS_CHILD | WS_VISIBLE | WS_CAPTION
+FONT 10, "MS Sans Serif"
+{
+ CONTROL "Now printing editor buffer...", -1, "static", SS_LEFT | WS_CHILD | WS_VISIBLE, 36, 8, 80, 8
+}
+
+
+
+
+
+
+
+
+
+

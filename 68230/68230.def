@@ -1,0 +1,11 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; definition file for dll MC68230.DLL
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+LIBRARY 68230						; name of library
+DESCRIPTION 'EVM MC68230 DLL'	; description
+EXETYPE WINDOWS					; type of executable
+CODE PRELOAD FIXED				; code segment attributes
+DATA PRELOAD FIXED SINGLE		; data segment attributes
+HEAPSIZE 1048000					; size of initially reserved global heap
+
+

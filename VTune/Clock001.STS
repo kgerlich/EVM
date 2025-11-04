@@ -1,0 +1,100 @@
+
+
+Inital Bind Run,  Name of sample file = C:\KLAUS\evm\VTune\Clock001.tb3
+QsortCmpCalls = 79109
+QsortNumElements = 6415
+Average number Qsort passes =  12.33
+QsortCalls = 5
+num_code_table_creates = 0
+num_mte_info_creates = 1237
+num_Mte_creates = 1283
+num_SearchCalls = 1711
+num_SearchLinear = 0
+num_FoundLinear = 0
+num_SearchCmps = 15968
+Average num compares per Mte search = 9.33
+num_SearchFound = 1459
+num_SearchNotFound = 252
+num_SearchCacheHits = 451
+Average Mte search cache hits = 26.36%
+num_eipIndexFind = 20293
+num_eipFindCmps = 23896
+Average num compares per eip_table find = 1.18
+num_eipDeferredMteS = 18582
+num_eipTableCreates = 1462
+num_modV86 = 0
+num_mod16 = 0
+num_mod32 = 1283
+
+num_PidSearchCalls = 0
+num successful Pid searches = 0
+num_PidSearchCmps = 0
+num_PidSearchCacheHits = 0
+
+number of samples = 20293,  TBS file size = 0.86 Mb
+Average seconds per TBS file megabyte = 4.74, average megabytes per second = 0.21
+
+Analyzer run time = 4.07 seconds
+
+Average microseconds per sample = 201
+
+Samples per second = 4991.0
+
+peak storage used = 611340,  number of mallocs=22, number of frees=1
+
+
+View001,  Name of sample file = C:\KLAUS\evm\VTune\Clock001.tb3
+QsortCmpCalls = 11156
+QsortNumElements = 1570
+Average number Qsort passes =   7.11
+QsortCalls = 43
+num_code_table_creates = 2
+num_mte_info_creates = 68
+num_Mte_creates = 68
+num_SearchCalls = 0
+num_SearchLinear = 0
+num_FoundLinear = 0
+num_SearchCmps = 0
+num_SearchFound = 0
+num_SearchNotFound = 0
+num_SearchCacheHits = 0
+num_eipIndexFind = 20293
+num_eipFindCmps = 23896
+Average num compares per eip_table find = 1.18
+num_eipDeferredMteS = 18582
+num_eipTableCreates = 1462
+num_modV86 = 0
+num_mod16 = 0
+num_mod32 = 68
+
+num_PidSearchCalls = 0
+num successful Pid searches = 0
+num_PidSearchCmps = 0
+num_PidSearchCacheHits = 0
+
+number of samples = 20293,  TBS file size = 0.86 Mb
+Average seconds per TBS file megabyte = 4.36, average megabytes per second = 0.23
+
+Analyzer run time = 3.74 seconds
+
+Average microseconds per sample = 185
+
+Samples per second = 5431.8
+
+HashStats -- avg=1.51  find=60579  add=257  ReAdd=0  expansion=0
+Sample range = 1 -- 4294967295
+
+peak storage used = 515536,  number of mallocs=25, number of frees=9
+
+
+View001,  num DB recs added = 1792 to databse C:\KLAUS\evm\VTune\Clock001.mdb
+Total DB time (in seconds) = 1.722
+Time to create (seconds) = 0.01
+Time to close (seconds) = 0.00
+Record processing time (seconds) = 1.71
+
+Average num adds per second including open/close = 1040.7
+Average num adds per second excluding open/close = 1046.7
+Time to add one record (in milliseconds, including open/close) 1.0
+Time to add one record (in milliseconds, excluding open/close) 1.0
+Sample range = 1 -- 4294967295

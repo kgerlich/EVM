@@ -1,0 +1,18 @@
+/****************************************************************************
+
+
+stwin.rh
+
+produced by Borland Resource Workshop
+
+
+*****************************************************************************/
+
+
+#define IDC_START	101
+#define IDM_DEBUGBREAK	24
+#define IDC_MODULES	102
+#define IDM_ABOUT	1
+#define IDM_RESET	7
+#define IDM_QUIT	2
+

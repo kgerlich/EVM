@@ -1,0 +1,41 @@
+LIBRARY USER32
+
+DESCRIPTION 'import lib def file for use with LIB.EXE'
+
+EXPORTS
+	GetWindowRect	@321
+	MessageBoxA	@409
+	wsprintfA	@620
+	GetMessageA	@279
+	DispatchMessageA	@145
+	TranslateMessage	@588
+	SetTimer	@540
+	UpdateWindow	@601
+	SetDlgItemTextA	@504
+	SendMessageA	@480
+	SendDlgItemMessageA	@477
+	CreatePopupMenu	@85
+	GetSystemMetrics	@302
+	SetWindowPos	@549
+	GetCursorPos	@238
+	AppendMenuA	@5
+	EnableMenuItem	@177
+	PostMessageA	@438
+	TrackPopupMenu	@582
+	PostQuitMessage	@440
+	GetClientRect	@229
+	BeginPaint	@10
+	LoadBitmapA	@372
+	DestroyMenu	@138
+	EndPaint	@183
+	GetAsyncKeyState	@216
+	KillTimer	@369
+	DestroyWindow	@139
+	DefWindowProcA	@129
+	RegisterClassA	@451
+	LoadIconA	@378
+	LoadCursorA	@374
+	ShowWindow	@564
+	LoadMenuA	@386
+	CreateWindowExA	@86
+	CreateDialogParamA	@76

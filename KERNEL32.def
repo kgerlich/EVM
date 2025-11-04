@@ -1,0 +1,60 @@
+LIBRARY KERNEL32
+
+DESCRIPTION 'import lib def file for use with LIB.EXE'
+
+EXPORTS
+	Sleep	@579
+	CloseHandle	@25
+	TerminateThread	@587
+	FindFirstFileA	@131
+	CreateThread	@68
+	GetPrivateProfileStringA	@275
+	LocalFree	@412
+	LocalUnlock	@418
+	LocalLock	@414
+	LocalAlloc	@408
+	GetCurrentDirectoryA	@210
+	FreeLibrary	@153
+	LoadLibraryA	@402
+	GetProcAddress	@279
+	WaitForSingleObject	@622
+	GetTickCount	@326
+	FindNextFileA	@136
+	GetModuleHandleA	@255
+	GetStartupInfoA	@297
+	GetStringTypeA	@300
+	LCMapStringW	@400
+	GetStringTypeW	@303
+	MultiByteToWideChar	@429
+	SetStdHandle	@557
+	LCMapStringA	@399
+	HeapReAlloc	@370
+	VirtualAlloc	@607
+	GetOEMCP	@266
+	GetACP	@158
+	HeapAlloc	@361
+	SetFilePointer	@541
+	GetLastError	@245
+	GetCPInfo	@164
+	RtlUnwind	@488
+	HeapFree	@367
+	WriteFile	@639
+	HeapCreate	@363
+	HeapDestroy	@365
+	VirtualFree	@610
+	GetStdHandle	@299
+	SetHandleCount	@543
+	FlushFileBuffers	@143
+	GetFileType	@240
+	GetCommandLineA	@171
+	GetEnvironmentStrings	@226
+	WideCharToMultiByte	@626
+	GetEnvironmentStringsW	@228
+	FreeEnvironmentStringsA	@151
+	GetModuleFileNameA	@253
+	FreeEnvironmentStringsW	@152
+	ExitProcess	@108
+	GetVersion	@333
+	UnhandledExceptionFilter	@596
+	GetCurrentProcess	@212
+	TerminateProcess	@586
