@@ -261,18 +261,55 @@ simulator_module_t evmrom_module = {
  * ============================================================================ */
 
 typedef struct {
-    uint8_t registers[256];
+    /* Port A */
+    uint8_t PADR;       /* Port A Data Register */
+    uint8_t PADDR;      /* Port A Direction Register */
+
+    /* Port B */
+    uint8_t PBDR;       /* Port B Data Register */
+    uint8_t PBDDR;      /* Port B Direction Register */
+
+    /* Port C */
+    uint8_t PCDR;       /* Port C Data Register */
+    uint8_t PCDDR;      /* Port C Direction Register */
+
+    /* Control Registers */
+    uint8_t PGCR;       /* Port General Control Register */
+    uint8_t PSRR;       /* Port Service Request Register */
+    uint8_t PACR;       /* Port A Control Register */
+    uint8_t PBCR;       /* Port B Control Register */
+    uint8_t PAAR;       /* Port A Alternate Register */
+    uint8_t PBAR;       /* Port B Alternate Register */
+    uint8_t PSR;        /* Port Status Register */
+
+    /* Timer Registers */
+    uint8_t TCR;        /* Timer Control Register */
+    uint8_t TIVR;       /* Timer Interrupt Vector Register */
+    uint8_t TSR;        /* Timer Status Register */
+    uint8_t PIVR;       /* Port Interrupt Vector Register */
+
+    /* Counter Registers */
+    uint8_t CPRH, CPRM, CPRL;  /* Counter Preload */
+    uint8_t CNTRH, CNTRM, CNTRL;  /* Counter */
+
+    /* Timer state */
+    uint32_t counter;
+    uint32_t preload;
+    uint32_t tick_count;
+
 } pit_state_t;
 
 #define PIT_BASE_ADDR   0x800000
-#define PIT_SIZE        256
+#define PIT_SIZE        0x36
 
 static pit_state_t pit_state = {0};
 
 static int pit_setup(simulator_module_t *mod)
 {
     pit_state_t *state = (pit_state_t *)mod->state;
-    memset(state->registers, 0, sizeof(state->registers));
+    memset(state, 0, sizeof(pit_state_t));
+    state->preload = 0xFFFFFF;
+    state->counter = 0xFFFFFF;
     return 1;  /* Success */
 }
 
@@ -284,7 +321,9 @@ static void pit_init(simulator_module_t *mod)
 static void pit_reset(simulator_module_t *mod)
 {
     pit_state_t *state = (pit_state_t *)mod->state;
-    memset(state->registers, 0, sizeof(state->registers));
+    memset(state, 0, sizeof(pit_state_t));
+    state->preload = 0xFFFFFF;
+    state->counter = 0xFFFFFF;
 }
 
 static void pit_exit(simulator_module_t *mod)
@@ -294,20 +333,55 @@ static void pit_exit(simulator_module_t *mod)
 
 static void pit_simulate(simulator_module_t *mod)
 {
-    /* Timer simulation would go here */
+    pit_state_t *state = (pit_state_t *)mod->state;
+
+    /* Basic timer decrement - decrements every 1000 ticks */
+    if ((++(state->tick_count) & 0x3FF) == 0) {
+        if (state->counter > 0) {
+            state->counter--;
+        } else {
+            /* Timer underflow */
+            state->counter = state->preload;
+            state->TSR |= 0x01;  /* Set underflow bit */
+        }
+    }
 }
 
 static uint32_t pit_read(simulator_module_t *mod, uint32_t addr, int size)
 {
     pit_state_t *state = (pit_state_t *)mod->state;
-    uint32_t offset = (addr - mod->base_addr) & 0xFF;
+    uint32_t offset = (addr - mod->base_addr) & 0x3F;
 
     if (size == 1) {
-        return state->registers[offset];
+        /* Register mapping based on offset */
+        switch (offset) {
+            case 0x01: return state->PGCR;
+            case 0x03: return state->PSRR;
+            case 0x05: return state->PADDR;
+            case 0x07: return state->PBDDR;
+            case 0x09: return state->PCDDR;
+            case 0x0B: return state->PIVR;
+            case 0x0D: return state->PACR;
+            case 0x0F: return state->PBCR;
+            case 0x11: return state->PADR;
+            case 0x13: return state->PBDR;
+            case 0x15: return state->PAAR;
+            case 0x17: return state->PBAR;
+            case 0x19: return state->PCDR;
+            case 0x1B: return state->PSR;
+            case 0x21: return state->TCR;
+            case 0x23: return state->TIVR;
+            case 0x27: return state->CNTRH;
+            case 0x29: return state->CNTRM;
+            case 0x2B: return state->CNTRL;
+            case 0x2D: return state->TSR;
+            default: return 0xFF;
+        }
     } else if (size == 2) {
-        uint32_t result = ((uint32_t)state->registers[offset] << 8);
-        if (offset + 1 < sizeof(state->registers)) {
-            result |= state->registers[offset + 1];
+        uint32_t result = pit_read(mod, addr, 1);
+        result = (result << 8);
+        if (offset + 1 < PIT_SIZE) {
+            result |= pit_read(mod, addr + 1, 1);
         }
         return result;
     }
@@ -317,14 +391,38 @@ static uint32_t pit_read(simulator_module_t *mod, uint32_t addr, int size)
 static void pit_write(simulator_module_t *mod, uint32_t addr, uint32_t data, int size)
 {
     pit_state_t *state = (pit_state_t *)mod->state;
-    uint32_t offset = (addr - mod->base_addr) & 0xFF;
+    uint32_t offset = (addr - mod->base_addr) & 0x3F;
 
     if (size == 1) {
-        state->registers[offset] = (uint8_t)data;
+        data = data & 0xFF;
+        switch (offset) {
+            case 0x01: state->PGCR = data; break;
+            case 0x03: state->PSRR = data; break;
+            case 0x05: state->PADDR = data; break;
+            case 0x07: state->PBDDR = data; break;
+            case 0x09: state->PCDDR = data; break;
+            case 0x0B: state->PIVR = data & 0xFC; break;
+            case 0x0D: state->PACR = data; break;
+            case 0x0F: state->PBCR = data; break;
+            case 0x11: state->PADR = data & state->PADDR; break;  /* Mask by direction */
+            case 0x13: state->PBDR = data & state->PBDDR; break;
+            case 0x15: state->PAAR = data; break;
+            case 0x17: state->PBAR = data; break;
+            case 0x19: state->PCDR = data & state->PCDDR; break;
+            case 0x21: state->TCR = data; break;
+            case 0x23: state->TIVR = data; break;
+            case 0x25: state->CPRH = data; break;
+            case 0x27: state->CPRM = data; break;
+            case 0x29: state->CPRL = data; break;
+            case 0x2B: state->CNTRH = data; break;
+            case 0x2D: state->CNTRM = data; break;
+            case 0x2F: state->CNTRL = data; break;
+            case 0x31: state->TSR = 0; break;  /* Writing clears flags */
+        }
     } else if (size == 2) {
-        state->registers[offset] = (uint8_t)((data >> 8) & 0xFF);
-        if (offset + 1 < sizeof(state->registers)) {
-            state->registers[offset + 1] = (uint8_t)(data & 0xFF);
+        pit_write(mod, addr, (data >> 8) & 0xFF, 1);
+        if (offset + 1 < PIT_SIZE) {
+            pit_write(mod, addr + 1, data & 0xFF, 1);
         }
     }
 }
@@ -346,22 +444,61 @@ simulator_module_t pit68230_module = {
 };
 
 /* ============================================================================
- * 68681 UART Module (at 0xA00000)
+ * 68681 UART Module (Dual UART at 0xA00000)
  * ============================================================================ */
 
 typedef struct {
-    uint8_t registers[256];
+    /* Channel A */
+    uint8_t MR1A;       /* Mode Register 1A */
+    uint8_t SRA;        /* Status Register A */
+    uint8_t CSRA;       /* Clock Select Register A */
+    uint8_t CRA;        /* Command Register A */
+    uint8_t RBA;        /* Receiver Buffer A */
+    uint8_t TBA;        /* Transmitter Buffer A */
+    uint8_t IPCR;       /* Input Port Change Register */
+    uint8_t IPU;        /* Input Port Unlatched */
+
+    /* Channel B */
+    uint8_t MR1B;       /* Mode Register 1B */
+    uint8_t SRB;        /* Status Register B */
+    uint8_t CSRB;       /* Clock Select Register B */
+    uint8_t CRB;        /* Command Register B */
+    uint8_t RBB;        /* Receiver Buffer B */
+    uint8_t TBB;        /* Transmitter Buffer B */
+
+    /* Common Registers */
+    uint8_t ACR;        /* Auxiliary Control Register */
+    uint8_t ISR;        /* Interrupt Status Register */
+    uint8_t IMR;        /* Interrupt Mask Register */
+    uint8_t IVR;        /* Interrupt Vector Register */
+    uint8_t CTUR;       /* Counter/Timer Upper Register */
+    uint8_t CTLR;       /* Counter/Timer Lower Register */
+    uint8_t CMSB;       /* Current MSB of Counter */
+    uint8_t CLSB;       /* Current LSB of Counter */
+    uint8_t OPCR;       /* Output Port Configuration */
+    uint8_t OPR;        /* Output Port Register */
+
+    /* State tracking */
+    uint16_t tx_buffer_a;
+    uint16_t tx_buffer_b;
+    uint32_t counter;
+    uint32_t rx_ready_a;  /* Fake RX for testing */
+    uint32_t rx_ready_b;
+
 } uart_state_t;
 
 #define UART_BASE_ADDR  0xA00000
-#define UART_SIZE       256
+#define UART_SIZE       0x20
 
 static uart_state_t uart_state = {0};
 
 static int uart_setup(simulator_module_t *mod)
 {
     uart_state_t *state = (uart_state_t *)mod->state;
-    memset(state->registers, 0, sizeof(state->registers));
+    memset(state, 0, sizeof(uart_state_t));
+    /* Initialize status registers with TXRDY bits set (ready to transmit) */
+    state->SRA = 0x04;  /* TXRDY for channel A */
+    state->SRB = 0x04;  /* TXRDY for channel B */
     return 1;  /* Success */
 }
 
@@ -373,7 +510,9 @@ static void uart_init(simulator_module_t *mod)
 static void uart_reset(simulator_module_t *mod)
 {
     uart_state_t *state = (uart_state_t *)mod->state;
-    memset(state->registers, 0, sizeof(state->registers));
+    memset(state, 0, sizeof(uart_state_t));
+    state->SRA = 0x04;
+    state->SRB = 0x04;
 }
 
 static void uart_exit(simulator_module_t *mod)
@@ -383,16 +522,53 @@ static void uart_exit(simulator_module_t *mod)
 
 static void uart_simulate(simulator_module_t *mod)
 {
-    /* UART simulation would go here */
+    uart_state_t *state = (uart_state_t *)mod->state;
+
+    /* Simple simulation: always set TXRDY and periodically set RXRDY */
+    state->SRA |= 0x04;  /* TXRDY - transmitter ready */
+    state->SRB |= 0x04;  /* TXRDY - transmitter ready */
+
+    /* Simulate occasional RX data availability */
+    if ((++state->counter & 0x1FFF) == 0) {
+        state->SRA |= 0x01;  /* Set RXRDY for channel A */
+        state->rx_ready_a = 1;
+    }
 }
 
 static uint32_t uart_read(simulator_module_t *mod, uint32_t addr, int size)
 {
     uart_state_t *state = (uart_state_t *)mod->state;
-    uint32_t offset = (addr - mod->base_addr) & 0xFF;
+    uint32_t offset = (addr - mod->base_addr) & 0x1F;
 
     if (size == 1) {
-        return state->registers[offset];
+        /* Register mapping for 68681 DUART */
+        switch (offset) {
+            /* Channel A */
+            case 0x01: return state->MR1A;
+            case 0x03: return state->SRA;
+            case 0x05: return 0xFF;  /* Reserved */
+            case 0x07:
+                state->SRA &= ~0x01;  /* Clear RXRDY after read */
+                return state->RBA;
+            case 0x09: return state->IPCR;
+            case 0x0B: return state->ISR;
+            case 0x0D: return state->CMSB;
+            case 0x0F: return state->CLSB;
+
+            /* Channel B */
+            case 0x11: return state->MR1B;
+            case 0x13: return state->SRB;
+            case 0x15: return 0xFF;  /* Reserved */
+            case 0x17:
+                state->SRB &= ~0x01;  /* Clear RXRDY after read */
+                return state->RBB;
+            case 0x19: return state->IVR;
+            case 0x1B: return state->IPU;
+            case 0x1D: return 0xFF;  /* Reserved */
+            case 0x1F: return 0xFF;  /* Reserved */
+
+            default: return 0xFF;
+        }
     }
     return 0;
 }
@@ -400,15 +576,50 @@ static uint32_t uart_read(simulator_module_t *mod, uint32_t addr, int size)
 static void uart_write(simulator_module_t *mod, uint32_t addr, uint32_t data, int size)
 {
     uart_state_t *state = (uart_state_t *)mod->state;
-    uint32_t offset = (addr - mod->base_addr) & 0xFF;
+    uint32_t offset = (addr - mod->base_addr) & 0x1F;
 
     if (size == 1) {
-        state->registers[offset] = (uint8_t)data;
+        data = data & 0xFF;
+        switch (offset) {
+            /* Channel A */
+            case 0x01: state->MR1A = data; break;
+            case 0x03: state->CSRA = data; break;
+            case 0x05: state->CRA = data; break;
+            case 0x07:
+                state->TBA = data;
+                /* Echo output to stderr for debugging */
+                if (data >= 32 && data < 127) {
+                    fprintf(stderr, "%c", data);
+                } else if (data == '\n') {
+                    fprintf(stderr, "\n");
+                }
+                fflush(stderr);
+                state->SRA |= 0x04;  /* Set TXRDY */
+                break;
+            case 0x09: state->ACR = data; break;
+            case 0x0B: state->IMR = data; break;
+            case 0x0D: state->CTUR = data; break;
+            case 0x0F: state->CTLR = data; break;
 
-        /* Simple UART output - write to stdout */
-        if (offset == 0) {  /* TX buffer */
-            putchar((int)data);
-            fflush(stdout);
+            /* Channel B */
+            case 0x11: state->MR1B = data; break;
+            case 0x13: state->CSRB = data; break;
+            case 0x15: state->CRB = data; break;
+            case 0x17:
+                state->TBB = data;
+                /* Echo output */
+                if (data >= 32 && data < 127) {
+                    fprintf(stderr, "%c", data);
+                } else if (data == '\n') {
+                    fprintf(stderr, "\n");
+                }
+                fflush(stderr);
+                state->SRB |= 0x04;  /* Set TXRDY */
+                break;
+            case 0x19: state->IVR = data; break;
+            case 0x1B: state->OPCR = data; break;
+            case 0x1D: state->OPR = data; break;  /* Set output port */
+            case 0x1F: state->OPR &= ~data; break;  /* Clear output port */
         }
     }
 }
