@@ -1,7 +1,7 @@
 /*
  * MC68020 CPU instruction implementations
  * Extracted and cleaned from original Stcom.c
- * Contains 24 key instruction handlers
+ * Contains 24 key instruction handlers + assembly block ports
  */
 
 #include "STSTDDEF.H"
@@ -11,6 +11,7 @@
 #include "STMEM.H"
 #include "macros.h"
 #include "../include/simulator.h"
+#include <stdint.h>
 
 /* Forward declarations */
 extern CPU cpu;
@@ -34,6 +35,71 @@ extern union {
     } special;
 } of;
 extern long (*CommandMode[8])(char reg, char command, long destination, char size);
+
+/* Helper functions for assembly block ports */
+
+/* Decimal Adjust After Addition (DAA) - converts binary result to BCD */
+static unsigned char daa_adjust(unsigned char value, unsigned char extend_flag)
+{
+    unsigned char result = value;
+    unsigned char lower_nibble = result & 0x0F;
+    unsigned char upper_nibble = (result >> 4) & 0x0F;
+    unsigned char carry = 0;
+
+    /* Adjust lower nibble */
+    if (lower_nibble > 9 || (result & 0x01)) {  /* AF flag equivalent */
+        result += 6;
+        if (result & 0xF0) {
+            carry = 1;
+            result &= 0x0F;
+        }
+    }
+
+    /* Adjust upper nibble */
+    upper_nibble = (result >> 4) & 0x0F;
+    if (upper_nibble > 9 || carry || extend_flag) {
+        result += 0x60;
+        carry = 1;
+    }
+
+    return result;
+}
+
+/* 64-bit unsigned division: (Dr:Dq) / divisor */
+static void div64_unsigned(uint32_t *quotient, uint32_t *remainder,
+                           uint32_t high, uint32_t low, uint32_t divisor)
+{
+    if (divisor == 0) {
+        *quotient = 0;
+        *remainder = 0;
+        return;
+    }
+
+    uint64_t dividend = ((uint64_t)high << 32) | low;
+    uint64_t result = dividend / divisor;
+    uint64_t rem = dividend % divisor;
+
+    *quotient = (uint32_t)(result & 0xFFFFFFFFULL);
+    *remainder = (uint32_t)(rem & 0xFFFFFFFFULL);
+}
+
+/* 64-bit signed division: (Dr:Dq) / divisor */
+static void div64_signed(int32_t *quotient, int32_t *remainder,
+                         int32_t high, int32_t low, int32_t divisor)
+{
+    if (divisor == 0) {
+        *quotient = 0;
+        *remainder = 0;
+        return;
+    }
+
+    int64_t dividend = ((int64_t)high << 32) | ((uint32_t)low);
+    int64_t result = dividend / divisor;
+    int64_t rem = dividend % divisor;
+
+    *quotient = (int32_t)(result & 0xFFFFFFFFLL);
+    *remainder = (int32_t)(rem & 0xFFFFFFFFLL);
+}
 
 /* Instruction implementations */
 
@@ -1437,29 +1503,541 @@ void COM_tst(short opcode)
 
 /* Multiplication and Division */
 void COM_mul(short opcode) { cpu.pc += 2; }
-void COM_mulu(short opcode) { cpu.pc += 2; }
-void COM_muls(short opcode) { cpu.pc += 2; }
-void COM_mul020(short opcode) { cpu.pc += 2; }
+/* Multiply Unsigned */
+void COM_mulu(short opcode)
+{
+    static short regs;
+
+    CACHEFUNCTION(COM_mulu);
+    cpu.pc += 2;
+    if ((of.general.regdest) == 6) {
+        regs = GETword(cpu.pc);
+        cpu.pc += 2;
+        work.source = CommandMode[of.general.modesrc]((char)(of.general.regsrc), 0, 0L, 2);
+        if (opcode & 0x0400) {
+            Unknown(opcode);
+        } else {
+            cpu.dregs.d[(regs >> 12) & 0x0007] =
+                (unsigned long)((unsigned long)cpu.dregs.d[(regs >> 12) & 0x0007] *
+                                (unsigned long)work.source);
+        }
+    } else {
+        work.source = CommandMode[of.general.modesrc]((char)(of.general.regsrc), 0, 0L, 1);
+        cpu.dregs.d[of.general.regdest] =
+            (unsigned long)((unsigned short)cpu.dregs.d[of.general.regdest] *
+                            (unsigned short)work.source);
+    }
+}
+
+/* Multiply Signed */
+void COM_muls(short opcode)
+{
+    static short regs;
+
+    CACHEFUNCTION(COM_muls);
+    cpu.pc += 2;
+    if ((of.general.regdest) == 6) {
+        regs = GETword(cpu.pc);
+        cpu.pc += 2;
+        work.source = CommandMode[of.general.modesrc]((char)(of.general.regsrc), 0, 0L, 2);
+        if (opcode & 0x0400) {
+            Unknown(opcode);
+        } else {
+            cpu.dregs.d[(regs >> 12) & 0x0007] =
+                (long)((long)cpu.dregs.d[(regs >> 12) & 0x0007] *
+                       (long)work.source);
+        }
+    } else {
+        work.source = CommandMode[of.general.modesrc]((char)(of.general.regsrc), 0, 0L, 1);
+        cpu.dregs.d[of.general.regdest] =
+            (long)((short)cpu.dregs.d[of.general.regdest] *
+                   (short)work.source);
+    }
+}
+
+/* 68020 Multiply - supports 64-bit result */
+void COM_mul020(short opcode)
+{
+    static short extension;
+
+    CACHEFUNCTION(COM_mul020);
+    cpu.pc += 2;
+    extension = GETword(cpu.pc);
+    cpu.pc += 2;
+    work.source = CommandMode[of.general.modesrc]((char)(of.general.regsrc), 0, 0L, 2);
+
+    switch ((extension >> 11) & 0x0001) {
+        case 0: /* MULU - unsigned multiply */
+            switch ((extension >> 10) & 0x0001) {
+                case 0: /* 32 bit to Di */
+                    cpu.dregs.d[(extension >> 12) & 0x0007] =
+                        (unsigned long)cpu.dregs.d[(extension >> 12) & 0x0007] *
+                        (unsigned long)work.source;
+                    if ((unsigned long)cpu.dregs.d[(extension >> 12) & 0x0007] <
+                        (unsigned short)work.source)
+                        OVER1;
+                    else
+                        OVER0;
+                    break;
+                case 1: /* 64 bit in Di:Dh */
+                    Unknown(opcode);
+                    break;
+            }
+            break;
+        case 1: /* MULS - signed multiply */
+            switch ((extension >> 10) & 0x0001) {
+                case 0: /* 32 bit to Di */
+                    cpu.dregs.d[(extension >> 12) & 0x0007] =
+                        (long)cpu.dregs.d[(extension >> 12) & 0x0007] *
+                        (long)work.source;
+                    if ((short)cpu.dregs.d[(extension >> 12) & 0x0007] <
+                        (short)work.source)
+                        OVER1;
+                    else
+                        OVER0;
+                    break;
+                case 1: /* 64 bit in Di:Dh */
+                    Unknown(opcode);
+                    break;
+            }
+            break;
+    }
+    if (cpu.dregs.d[(extension >> 12) & 0x0007] == 0)
+        ZERO1;
+    else
+        ZERO0;
+    if ((long)cpu.dregs.d[(extension >> 12) & 0x0007] < 0)
+        NEG1;
+    else
+        NEG0;
+    CARRY0;
+}
 void COM_div(short opcode) { cpu.pc += 2; }
 void COM_divx(short opcode) { cpu.pc += 2; }
-void COM_div020(short opcode) { cpu.pc += 2; }
+/* 68020 Division with optional 64-bit support */
+void COM_div020(short opcode)
+{
+    short extension;
+    uint32_t Dr, Dq;
+    uint32_t quotient, remainder;
 
-/* Branch and Jump Operations */
-void COM_bcc(short opcode) { cpu.pc += 2; }
-void COM_bcs(short opcode) { cpu.pc += 2; }
-void COM_bge(short opcode) { cpu.pc += 2; }
-void COM_bgt(short opcode) { cpu.pc += 2; }
-void COM_bhi(short opcode) { cpu.pc += 2; }
-void COM_ble(short opcode) { cpu.pc += 2; }
-void COM_bls(short opcode) { cpu.pc += 2; }
-void COM_blt(short opcode) { cpu.pc += 2; }
-void COM_bmi(short opcode) { cpu.pc += 2; }
-void COM_bpl(short opcode) { cpu.pc += 2; }
-void COM_bsr(short opcode) { cpu.pc += 2; }
-void COM_bvc(short opcode) { cpu.pc += 2; }
-void COM_bvs(short opcode) { cpu.pc += 2; }
+    CACHEFUNCTION(COM_div020);
+    cpu.pc += 2;
+    extension = GETword(cpu.pc);
+    cpu.pc += 2;
+    work.source = CommandMode[of.general.modesrc]((char)(of.general.regsrc), 0, 0L, 2);
+
+    if (work.source) {
+        switch ((extension >> 11) & 0x0001) {
+            case 0: /* DIVU - unsigned divide */
+                switch ((extension >> 10) & 0x0001) {
+                    case 0: /* 32 bit to Dq */
+                        div64_unsigned(&quotient, &remainder, 0, cpu.dregs.d[(extension >> 12) & 0x0007], work.source);
+                        cpu.dregs.d[extension & 0x0007] = remainder;
+                        cpu.dregs.d[(extension >> 12) & 0x0007] = quotient;
+                        if (quotient < (unsigned short)work.source)
+                            OVER1;
+                        else
+                            OVER0;
+                        break;
+                    case 1: /* 64 bit in Dq:Dr */
+                        Dr = cpu.dregs.d[extension & 0x0007];
+                        Dq = cpu.dregs.d[(extension >> 12) & 0x0007];
+                        div64_unsigned(&quotient, &remainder, Dr, Dq, (uint32_t)work.source);
+                        cpu.dregs.d[extension & 0x0007] = remainder;
+                        cpu.dregs.d[(extension >> 12) & 0x0007] = quotient;
+                        break;
+                }
+                break;
+            case 1: /* DIVS - signed divide */
+                switch ((extension >> 10) & 0x0001) {
+                    case 0: /* 32 bit to Dq */
+                        div64_signed((int32_t*)&quotient, (int32_t*)&remainder,
+                                    0, (int32_t)cpu.dregs.d[(extension >> 12) & 0x0007], (int32_t)work.source);
+                        cpu.dregs.d[extension & 0x0007] = remainder;
+                        cpu.dregs.d[(extension >> 12) & 0x0007] = quotient;
+                        if ((int32_t)quotient < (short)work.source)
+                            OVER1;
+                        else
+                            OVER0;
+                        break;
+                    case 1: /* 64 bit in Dq:Dr */
+                        Dr = cpu.dregs.d[extension & 0x0007];
+                        Dq = cpu.dregs.d[(extension >> 12) & 0x0007];
+                        div64_signed((int32_t*)&quotient, (int32_t*)&remainder,
+                                    (int32_t)Dr, (int32_t)Dq, (int32_t)work.source);
+                        cpu.dregs.d[extension & 0x0007] = remainder;
+                        cpu.dregs.d[(extension >> 12) & 0x0007] = quotient;
+                        break;
+                }
+                break;
+        }
+        if (cpu.dregs.d[(extension >> 12) & 0x0007] == 0)
+            ZERO1;
+        else
+            ZERO0;
+        if ((int32_t)cpu.dregs.d[(extension >> 12) & 0x0007] < 0)
+            NEG1;
+        else
+            NEG0;
+    } else {
+        div_by_zero();
+    }
+    CARRY0;
+}
+
+/* Branch Operations */
+
+/* Branch if Carry Clear (BCC) - equivalent to BHS (Branch if Higher or Same) */
+void COM_bcc(short opcode)
+{
+    CACHEFUNCTION(COM_bcc);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if ((cpu.sregs.sr & 0x01) == 0)
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if ((cpu.sregs.sr & 0x01) == 0)
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if ((cpu.sregs.sr & 0x01) == 0)
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Carry Set (BCS) - equivalent to BLO (Branch if Lower) */
+void COM_bcs(short opcode)
+{
+    CACHEFUNCTION(COM_bcs);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if ((cpu.sregs.sr & 0x01) != 0)
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if ((cpu.sregs.sr & 0x01) != 0)
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if ((cpu.sregs.sr & 0x01) != 0)
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Greater or Equal (BGE) */
+void COM_bge(short opcode)
+{
+    CACHEFUNCTION(COM_bge);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if (((cpu.sregs.sr & 0x0A) == 0) || ((cpu.sregs.sr & 0x0A) == 0x0A))
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if (((cpu.sregs.sr & 0x0A) == 0) || ((cpu.sregs.sr & 0x0A) == 0x0A))
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if (((cpu.sregs.sr & 0x0A) == 0) || ((cpu.sregs.sr & 0x0A) == 0x0A))
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Greater Than (BGT) */
+void COM_bgt(short opcode)
+{
+    CACHEFUNCTION(COM_bgt);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if (((cpu.sregs.sr & 0x0e) == 0x0A) || ((cpu.sregs.sr & 0x0e) == 0))
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if (((cpu.sregs.sr & 0x0e) == 0x0A) || ((cpu.sregs.sr & 0x0e) == 0))
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if (((cpu.sregs.sr & 0x0e) == 0x0A) || ((cpu.sregs.sr & 0x0e) == 0))
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Higher (BHI) - unsigned greater than */
+void COM_bhi(short opcode)
+{
+    CACHEFUNCTION(COM_bhi);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if (((cpu.sregs.sr & 0x05) == 0))
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if (((cpu.sregs.sr & 0x05) == 0))
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if (((cpu.sregs.sr & 0x05) == 0))
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Less or Equal (BLE) */
+void COM_ble(short opcode)
+{
+    CACHEFUNCTION(COM_ble);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if (((cpu.sregs.sr & 0x0A) != 0))
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if (((cpu.sregs.sr & 0x0A) != 0))
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if (((cpu.sregs.sr & 0x0A) != 0))
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Lower or Same (BLS) - unsigned less than or equal */
+void COM_bls(short opcode)
+{
+    CACHEFUNCTION(COM_bls);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if (((cpu.sregs.sr & 0x05) != 0))
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if (((cpu.sregs.sr & 0x05) != 0))
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if (((cpu.sregs.sr & 0x05) != 0))
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Less Than (BLT) */
+void COM_blt(short opcode)
+{
+    CACHEFUNCTION(COM_blt);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if (((cpu.sregs.sr & 0x0e) == 0x08) || ((cpu.sregs.sr & 0x0e) == 0x04))
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if (((cpu.sregs.sr & 0x0e) == 0x08) || ((cpu.sregs.sr & 0x0e) == 0x04))
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if (((cpu.sregs.sr & 0x0e) == 0x08) || ((cpu.sregs.sr & 0x0e) == 0x04))
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Minus (BMI) */
+void COM_bmi(short opcode)
+{
+    CACHEFUNCTION(COM_bmi);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if ((cpu.sregs.sr & 0x08) != 0)
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if ((cpu.sregs.sr & 0x08) != 0)
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if ((cpu.sregs.sr & 0x08) != 0)
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Plus (BPL) */
+void COM_bpl(short opcode)
+{
+    CACHEFUNCTION(COM_bpl);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if ((cpu.sregs.sr & 0x08) == 0)
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if ((cpu.sregs.sr & 0x08) == 0)
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if ((cpu.sregs.sr & 0x08) == 0)
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch to Subroutine (BSR) */
+void COM_bsr(short opcode)
+{
+    CACHEFUNCTION(COM_bsr);
+    cpu.aregs.a[7] -= 4;
+    PUTdword(cpu.aregs.a[7], cpu.pc + 2);
+    switch (opcode & 0x00ff) {
+        case 0:
+            cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            break;
+        case 0xFF:
+            cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            break;
+        default:
+            cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            break;
+    }
+}
+
+/* Branch if Overflow Clear (BVC) */
+void COM_bvc(short opcode)
+{
+    CACHEFUNCTION(COM_bvc);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if ((cpu.sregs.sr & 0x02) == 0)
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if ((cpu.sregs.sr & 0x02) == 0)
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if ((cpu.sregs.sr & 0x02) == 0)
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Branch if Overflow Set (BVS) */
+void COM_bvs(short opcode)
+{
+    CACHEFUNCTION(COM_bvs);
+    switch (opcode & 0x00ff) {
+        case 0:
+            if ((cpu.sregs.sr & 0x02) != 0)
+                cpu.pc = cpu.pc + (short)GETword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            if ((cpu.sregs.sr & 0x02) != 0)
+                cpu.pc = cpu.pc + (long)GETdword(cpu.pc + 2) + 2;
+            else
+                cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            if ((cpu.sregs.sr & 0x02) != 0)
+                cpu.pc = cpu.pc + (char)(opcode & 0x00ff) + 2;
+            else
+                cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
+
+/* Decrement and Branch if Condition Clear (DBCC) */
 void COM_dbcc(short opcode) { cpu.pc += 2; }
-void COM_bf(short opcode) { cpu.pc += 2; }
+
+/* Branch if False (BF) - never branches */
+void COM_bf(short opcode)
+{
+    CACHEFUNCTION(COM_bf);
+    switch (opcode & 0x00ff) {
+        case 0:
+            cpu.pc = cpu.pc + 4;
+            break;
+        case 0xFF:
+            cpu.pc = cpu.pc + 6;
+            break;
+        default:
+            cpu.pc = cpu.pc + 2;
+            break;
+    }
+}
 
 /* Move Operations */
 void COM_MoveByte(short opcode) { cpu.pc += 2; }
