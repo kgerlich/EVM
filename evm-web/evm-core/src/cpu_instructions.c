@@ -1491,8 +1491,24 @@ void COM_pack(short opcode) { cpu.pc += 2; }
 void COM_unpack(short opcode) { cpu.pc += 2; }
 
 /* Control Flow */
-void COM_link(short opcode) { cpu.pc += 2; }
-void COM_unlink(short opcode) { cpu.pc += 2; }
+void COM_link(short opcode)
+{
+	CACHEFUNCTION(COM_link);
+	cpu.pc+=2;
+	cpu.aregs.a[7]-=4;
+	PUTdword(cpu.aregs.a[7],cpu.aregs.a[of.general.regsrc]);
+	cpu.aregs.a[of.general.regsrc]=cpu.aregs.a[7];
+	cpu.aregs.a[7]=cpu.aregs.a[7]+(long)GETword(cpu.pc);
+	cpu.pc+=2;
+}
+void COM_unlink(short opcode)
+{
+	CACHEFUNCTION(COM_unlink);
+	cpu.pc+=2;
+	cpu.aregs.a[7]=cpu.aregs.a[of.general.regsrc];
+	cpu.aregs.a[of.general.regsrc]=GETdword(cpu.aregs.a[7]);
+	cpu.aregs.a[7]+=4;
+}
 void COM_trap(short opcode) { cpu.pc += 2; }
 void COM_trapv(short opcode) { cpu.pc += 2; }
 void COM_rtr(short opcode) { cpu.pc += 2; }
