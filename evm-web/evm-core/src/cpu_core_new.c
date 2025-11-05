@@ -19,7 +19,7 @@
 // ============================================================================
 
 CPU cpu;                                    // Virtual CPU register set
-static simulator_t *g_sim = NULL;           // Current simulator context
+simulator_t *g_sim = NULL;                  // Current simulator context (shared with stmem.c)
 BOOL bStopped = FALSE;                      // STOP instruction flag
 struct tag_work work;                       // Work structure for calculations
 

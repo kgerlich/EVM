@@ -5,11 +5,16 @@
 // DATE:				4/1997
 // DESCRIPTION:
 //						high level memory access for 68K simulator for Windows
+// MODIFIED: Updated to use new simulator module system instead of old DLL plugins
 ////////////////////////////////////////////////////////////////////////////////
 #include <stdio.h>
 #include <stdlib.h>
+#include "simulator.h" // New simulator module interface
 #include "STCOM.H"   // CPU core
 #include "STEXEP.H"  // exception handling
+
+// External simulator context (set by cpu_execute_opcode in cpu_core_new.c)
+extern simulator_t *g_sim;
 
 #define MAPPERSIZE (16*1024) // 16*1024 entries in table = 16MB � 1kB pages
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,14 +94,11 @@ short i,index;
 char GETbyte(unsigned long address)
 {
 	address&=0x00FFFFFFL;
-	// did we hit any peripheral device?
-	if(fpReadProc[address>>10]) // (address)/1024=entry in table
-	{
-		return (BYTE)fpReadProc[address>>10](address,1);
+	if (g_sim == NULL) {
+		bus_err();
+		return 0L;
 	}
-	else bus_err(); // since we would not receive an acknowledge in real life
-						 // we do a BUS ERROR
-	return 0L;
+	return (BYTE)simulator_read_memory(g_sim, address, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,13 +114,11 @@ char GETbyte(unsigned long address)
 short GETword(unsigned long address)
 {
 	address&=0x00FFFFFFL;
-	if(fpReadProc[address>>10]) // (address)/1024=entry in table
-	{
-		return (short)(unsigned long)fpReadProc[address>>10](address,2);
+	if (g_sim == NULL) {
+		bus_err();
+		return 0L;
 	}
-	else bus_err();  // since we would not receive an acknowledge in real life
-						  // we do a BUS ERROR
-	return 0L;
+	return (short)(unsigned long)simulator_read_memory(g_sim, address, 2);
 }
 
 
@@ -135,12 +135,11 @@ short GETword(unsigned long address)
 long GETdword(unsigned long address)
 {
 	address&=0x00FFFFFFL;
-	if(fpReadProc[address>>10]) // (address)/1024=entry in table
-	{
-		return fpReadProc[address>>10](address,4);
+	if (g_sim == NULL) {
+		bus_err();
+		return 0L;
 	}
-	else bus_err();  // same old game -> BUS ERROR
-	return 0L;
+	return simulator_read_memory(g_sim, address, 4);
 }
 
 
@@ -158,12 +157,11 @@ long GETdword(unsigned long address)
 void PUTbyte(unsigned long address,char data)
 {
 	address&=0x00FFFFFFL;
-	if(fpWriteProc[address>>10]) // (address)/1024=entry in table
-	{
-		fpWriteProc[address>>10](address,data,1);
+	if (g_sim == NULL) {
+		bus_err();
+		return;
 	}
-	else bus_err(); // stepped into memory hole?
-						 // then there's just one goal -> BUS ERROR
+	simulator_write_memory(g_sim, address, data, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,11 +178,11 @@ void PUTbyte(unsigned long address,char data)
 void PUTword(unsigned long address,short data)
 {
 	address&=0x00FFFFFFL;
-	if(fpWriteProc[address>>10]) // (address)/1024=entry in table
-	{
-		fpWriteProc[address>>10](address,data,2);
+	if (g_sim == NULL) {
+		bus_err();
+		return;
 	}
-	else bus_err(); // sorry, mister!!
+	simulator_write_memory(g_sim, address, data, 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,11 +199,11 @@ void PUTword(unsigned long address,short data)
 void PUTdword(unsigned long address,long data)
 {
 	address&=0x00FFFFFFL;
-	if(fpWriteProc[address>>10]) // (address)/1024=entry in table
-	{
-		fpWriteProc[address>>10](address,data,4);
+	if (g_sim == NULL) {
+		bus_err();
+		return;
 	}
-	else bus_err(); // all the same, end of game
+	simulator_write_memory(g_sim, address, data, 4);
 }
 
 
